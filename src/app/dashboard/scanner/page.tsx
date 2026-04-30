@@ -35,7 +35,7 @@ export default function ScannerPage() {
       const codeReader = new BrowserMultiFormatReader()
       
       if (videoRef.current) {
-        codeReader.decodeFromVideoDevice(undefined, videoRef.current, (result, err) => {
+        codeReader.decodeFromVideoDevice(null, videoRef.current, (result, err) => {
           if (result) {
             const code = result.getText()
             setInput(code)
