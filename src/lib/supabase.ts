@@ -104,6 +104,8 @@ export interface CotizacionItem {
   taxes_11?: number
   subtotal?: number
   orden?: number
+  ganancia_deseada?: number
+  precio_venta?: number
 }
 
 export interface Alerta {
