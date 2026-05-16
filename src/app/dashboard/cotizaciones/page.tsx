@@ -36,7 +36,7 @@ export default function CotizacionesPage() {
   // Estado para mensaje personalizado de WhatsApp
   const [msgPersonalizado, setMsgPersonalizado] = useState('')
   const [showModalProgramar, setShowModalProgramar] = useState(false)
-  const [pendingAction, setPendingAction] = useState<() => void | null>()
+  const [modalActionType, setModalActionType] = useState<'guardar_y_programar' | 'enviar_posterior' | null>(null)
 
   const [f, setF] = useState({
     nro: '', fecha: new Date().toISOString().split('T')[0],
@@ -148,7 +148,7 @@ export default function CotizacionesPage() {
     
     if (tipoEnvio === 'programar') {
       setMsgPersonalizado(`Hola ${f.cliente_nombre || ''}, te paso el presupuesto pendiente por los repuestos.`)
-      setPendingAction(() => () => procesarGuardar(tipoEnvio))
+      setModalActionType('guardar_y_programar')
       setShowModalProgramar(true)
     } else {
       await procesarGuardar(tipoEnvio)
@@ -185,6 +185,7 @@ export default function CotizacionesPage() {
     toast.success('✓ Cotización guardada')
     setSaving(false)
     setShowModalProgramar(false)
+    setModalActionType(null)
     loadAll()
     
     if (tipoEnvio === 'enviar_ya') {
@@ -194,6 +195,16 @@ export default function CotizacionesPage() {
     }
     
     setVista('lista')
+  }
+
+  const handleModalConfirm = async () => {
+    if (modalActionType === 'guardar_y_programar') {
+      await procesarGuardar('programar')
+    } else if (modalActionType === 'enviar_posterior' && currentCot) {
+      ejecutarEnvioWhatsApp(currentCot, currentCot.cotizacion_items || [], msgPersonalizado)
+      setShowModalProgramar(false)
+      setModalActionType(null)
+    }
   }
 
   const eliminar = async (id: string) => {
@@ -269,7 +280,7 @@ export default function CotizacionesPage() {
           <button onClick={() => ejecutarEnvioWhatsApp(currentCot, items)} className="btn btn-sm w-full bg-green-600 hover:bg-green-700 text-white flex justify-center gap-1.5 mb-2">
             <Send size={14} /> Enviar por WhatsApp
           </button>
-          <button onClick={() => { setMsgPersonalizado(''); setPendingAction(() => () => ejecutarEnvioWhatsApp(currentCot, items, msgPersonalizado)); setShowModalProgramar(true) }} className="btn btn-sm w-full bg-amber-500 hover:bg-amber-600 text-white flex justify-center gap-1.5">
+          <button onClick={() => { setMsgPersonalizado(`Hola ${currentCot.cliente_nombre || ''}, te paso la cotización pendiente.`); setModalActionType('enviar_posterior'); setShowModalProgramar(true) }} className="btn btn-sm w-full bg-amber-500 hover:bg-amber-600 text-white flex justify-center gap-1.5">
             <Clock size={14} /> WhatsApp Personalizado
           </button>
         </div>
@@ -416,7 +427,7 @@ export default function CotizacionesPage() {
               </div>
               <div className="col-span-2">
                 <label className="label">Link del producto</label>
-                <input className="input text-sm" placeholder="https://..." value={it.link || ''} onChange={updateItem.bind(null, i, 'link')} />
+                <input className="input text-sm" placeholder="https://..." value={it.link || ''} onChange={e => updateItem(i, 'link', e.target.value)} />
               </div>
               <div className="col-span-2">
                 <label className="label">URL Imagen del Producto</label>
@@ -482,7 +493,7 @@ export default function CotizacionesPage() {
 
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <div className="flex justify-between text-sm py-1"><span className="text-gray-500">Subtotal ítems (con taxes 11%)</span><span className="font-semibold">{fmt(totalCosto)}</span></div>
-          <div className="flex justify-between text-sm py-1"><span className="text-gray-500">Peso total estimado</span><span className="font-semibold">{totalTotalPeso => totalPeso.toFixed(2)} kg</span></div>
+          <div className="flex justify-between text-sm py-1"><span className="text-gray-500">Peso total estimado</span><span className="font-semibold">{totalPeso.toFixed(2)} kg</span></div>
         </div>
       </div>
 
@@ -521,8 +532,13 @@ export default function CotizacionesPage() {
         </button>
         <button onClick={() => setVista('lista')} className="btn">Cancelar</button>
       </div>
+    </div>
+  )
 
-      {/* Modal para mensaje personalizado (Programado / Posterior) */}
+  // ── LISTA ─────────────────────────────────────────────
+  return (
+    <div className="p-6 max-w-4xl">
+      {/* Modal para mensaje personalizado */}
       {showModalProgramar && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-5 max-w-md w-full shadow-xl">
@@ -530,18 +546,13 @@ export default function CotizacionesPage() {
             <p className="text-xs text-gray-500 mb-3">Escribí o editá el texto antes de abrir la ventana de WhatsApp Web:</p>
             <textarea className="input w-full h-32 text-sm p-2 border rounded-lg focus:outline-none" value={msgPersonalizado} onChange={e => setMsgPersonalizado(e.target.value)} />
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setShowModalProgramar(false)} className="btn btn-sm">Cancelar</button>
-              <button onClick={() => { if (pendingAction) pendingAction() }} className="btn btn-sm bg-green-600 text-white hover:bg-green-700">Abrir WhatsApp y Enviar</button>
+              <button onClick={() => { setShowModalProgramar(false); setModalActionType(null); }} className="btn btn-sm">Cancelar</button>
+              <button onClick={handleModalConfirm} className="btn btn-sm bg-green-600 text-white hover:bg-green-700">Abrir WhatsApp y Enviar</button>
             </div>
           </div>
         </div>
       )}
-    </div>
-  )
 
-  // ── LISTA ─────────────────────────────────────────────
-  return (
-    <div className="p-6 max-w-4xl">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3"><FileText size={24} className="text-gray-700" /><h1 className="text-2xl font-bold">Cotizaciones</h1></div>
         <button onClick={nuevaCot} className="btn btn-primary"><Plus size={16} /> Nueva cotización</button>
