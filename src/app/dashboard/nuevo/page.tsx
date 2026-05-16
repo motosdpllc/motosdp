@@ -3,6 +3,7 @@ import { useState, useEffect, Suspense, useRef } from 'react'
 import { supabase, type Cliente } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import toast from 'react-hot-toast'
+import BotonIA from './BotonIA'
 
 const MARCAS = [{ v: 'K', l: 'Kawasaki (K)' }, { v: 'Y', l: 'Yamaha (Y)' }, { v: 'S', l: 'Suzuki (S)' }, { v: 'H', l: 'Honda (H)' }, { v: 'HD', l: 'Harley-Davidson (HD)' }, { v: 'OTHER', l: 'Otra...' }]
 const SUBCODIGOS = [{ v: 'M', l: 'M – Motor' }, { v: 'C', l: 'C – Carbureción' }, { v: 'E', l: 'E – Electricidad' }, { v: 'T', l: 'T – Transmisión' }, { v: 'F', l: 'F – Frenos' }, { v: 'S', l: 'S – Suspensión/Chasis' }, { v: 'X', l: 'X – Carrocería' }, { v: 'I', l: 'I – Iluminación' }]
@@ -24,7 +25,6 @@ function NuevoForm() {
   const [cotSearch, setCotSearch] = useState('')
   const [showCotDrop, setShowCotDrop] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [loadingIA, setLoadingIA] = useState(false)
   const [codigoDisplay, setCodigoDisplay] = useState('—')
 
   const [f, setF] = useState({
@@ -41,21 +41,4 @@ function NuevoForm() {
 
   useEffect(() => {
     supabase.from('clientes').select('id, nombre, telefono, provincia').order('nombre').then(({ data }) => setClientes(data || []))
-    supabase.from('cotizaciones').select('*, cotizacion_items(*)').order('created_at', { ascending: false }).limit(20).then(({ data }) => setCotizaciones(data || []))
-    if (editId) loadEdit(editId)
-
-    const h = (e: MouseEvent) => {
-      if (cliDropRef.current && !cliDropRef.current.contains(e.target as Node)) setShowCliDrop(false)
-      if (cotDropRef.current && !cotDropRef.current.contains(e.target as Node)) setShowCotDrop(false)
-    }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [editId])
-
-  const loadEdit = async (id: string) => {
-    const { data } = await supabase.from('items').select('*').eq('id', id).single()
-    if (!data) return
-    setF({
-      pagina: data.pagina || '', fecha_compra: data.fecha_compra || '', producto: data.producto || '',
-      marca: data.marca || '', marca_custom: '', anio: data.anio || '', modelo: data.modelo || '',
-      subcodigo: data.sub
+    supabase.from('cotizaciones').select('*, cot
