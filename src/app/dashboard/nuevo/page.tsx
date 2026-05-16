@@ -24,6 +24,7 @@ function NuevoForm() {
   const [cotSearch, setCotSearch] = useState('')
   const [showCotDrop, setShowCotDrop] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [loadingIA, setLoadingIA] = useState(false)
   const [codigoDisplay, setCodigoDisplay] = useState('—')
 
   const [f, setF] = useState({
@@ -72,6 +73,43 @@ function NuevoForm() {
     })
     setCodigoDisplay(data.codigo || '—')
     setCliSearch(data.cliente_nombre || '')
+  }
+
+  // Lógica de consulta a la IA para autocompletar desde el Link
+  const analizarLinkConIA = async (url: string) => {
+    if (!url || !url.includes('ebay.com') || editId) return
+    setLoadingIA(true)
+    const toastId = toast.loading('IA analizando publicación de eBay...')
+
+    try {
+      const res = await fetch('/api/parse-ebay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      })
+      const result = await res.json()
+
+      if (result.success && result.data) {
+        const d = result.data
+        setF(prev => ({
+          ...prev,
+          pagina: 'eBay',
+          producto: d.producto || prev.producto,
+          marca: d.marca || prev.marca,
+          anio: d.ano || prev.anio,
+          modelo: d.modelo || prev.modelo,
+          oem: d.oem || prev.oem,
+          peso: d.peso ? d.peso.toString() : prev.peso,
+        }))
+        toast.success('¡Campos autocompletados con IA! Completá el importe de compra.', { id: toastId })
+      } else {
+        toast.error('La IA no pudo procesar este link, completalo manualmente.', { id: toastId })
+      }
+    } catch (err) {
+      toast.error('Error al conectar con la IA.', { id: toastId })
+    } finally {
+      setLoadingIA(false)
+    }
   }
 
   // Auto calcular totales
@@ -132,12 +170,9 @@ function NuevoForm() {
   const filtCli = clientes.filter(c => cliSearch && c.nombre.toLowerCase().includes(cliSearch.toLowerCase())).slice(0, 8)
   const filtCot = cotizaciones.filter(c => !cotSearch || (c.nro || '').toLowerCase().includes(cotSearch.toLowerCase()) || (c.cliente_nombre || '').toLowerCase().includes(cotSearch.toLowerCase())).slice(0, 6)
 
-  // Cargar desde cotización
   const cargarDesdeCot = (cot: any) => {
     const items = cot.cotizacion_items || []
     if (!items.length) { toast.error('Esta cotización no tiene ítems'); return }
-    // Si tiene un solo ítem, lo cargamos directamente
-    // Si tiene varios, cargamos el primero y avisamos
     const it = items[0]
     setF(p => ({
       ...p,
@@ -213,6 +248,32 @@ function NuevoForm() {
     <div className="p-6 max-w-4xl">
       <h1 className="text-2xl font-bold mb-6">{editId ? 'Editar ítem' : 'Nuevo ítem'}</h1>
 
+      {/* DETECTOR DE LINK PRINCIPAL (PASADO ARRIBA DEL TODO) */}
+      {!editId && (
+        <div className="card mb-4 border-purple-200 bg-purple-50">
+          <div className="text-sm font-semibold text-purple-800 mb-2">⚡ Automatizar carga desde Link de eBay</div>
+          <div className="flex gap-2">
+            <input 
+              className="input bg-white border-purple-300 focus:border-purple-500" 
+              placeholder="Pegá el link de eBay acá y presioná afuera para usar la IA..." 
+              value={f.link_producto}
+              onChange={e => setF(p => ({ ...p, link_producto: e.target.value }))}
+              onBlur={e => analizarLinkConIA(e.target.value)}
+              disabled={loadingIA}
+            />
+            <button 
+              type="button" 
+              onClick={() => analizarLinkConIA(f.link_producto)}
+              disabled={loadingIA || !f.link_producto}
+              className="btn bg-purple-600 hover:bg-purple-700 text-white font-medium px-4 py-2 text-sm rounded-lg"
+            >
+              {loadingIA ? 'Leyendo...' : 'Escanear'}
+            </button>
+          </div>
+          <p className="text-xs text-purple-600 mt-1">Busca y autocompleta: Producto en español, marca, año, modelo, OEM y peso estimado.</p>
+        </div>
+      )}
+
       {/* Cargar desde cotización */}
       {!editId && (
         <div className="card mb-4 border-blue-200 bg-blue-50">
@@ -233,7 +294,6 @@ function NuevoForm() {
               </div>
             )}
           </div>
-          <p className="text-xs text-blue-600 mt-1">Carga descripción, link, costo, peso y cliente automáticamente</p>
         </div>
       )}
 
@@ -242,7 +302,7 @@ function NuevoForm() {
         <div className="card">
           <div className="text-sm font-semibold mb-4">Información básica</div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            <div><label className="label">Página / tienda <span className="text-xs text-gray-400">(auto desde link)</span></label><input className="input" placeholder="eBay, Amazon..." {...s('pagina')} /></div>
+            <div><label className="label">Página / tienda</label><input className="input" placeholder="eBay, Amazon..." {...s('pagina')} /></div>
             <div><label className="label">Fecha de compra</label><input className="input" type="date" {...s('fecha_compra')} /></div>
             <div className="md:col-span-2 lg:col-span-3"><label className="label">Producto *</label><input className="input" placeholder="Descripción del repuesto" {...s('producto')} /></div>
           </div>
@@ -282,7 +342,6 @@ function NuevoForm() {
             <div><label className="label">Tracking compra</label><input className="input" placeholder="Número de tracking" {...s('tracking_compra')} /></div>
             <div><label className="label">Link tracking</label><input className="input" placeholder="https://..." {...s('link_tracking_compra')} /></div>
             <div><label className="label">ETA</label><input className="input" type="date" {...s('eta')} /></div>
-            <div className="md:col-span-2"><label className="label">Link del producto</label><input className="input" placeholder="https://... (autodetecta la tienda)" {...s('link_producto')} /></div>
           </div>
         </div>
 
