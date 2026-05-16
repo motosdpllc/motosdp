@@ -362,7 +362,7 @@ export default function CotizacionesPage() {
               </div>
               <div>
                 <label className="label">Ganancia deseada (USD)</label>
-                <input className="input text-sm" type="number" step="0.01" placeholder="0.00" value={it.ganancia_deseada || ''}
+                <input className="input text-sm" type="number" step="0.01" placeholder="0.00" value={(it as any).ganancia_deseada || ''}
                   onChange={e => {
                     const g = parseFloat(e.target.value) || 0
                     const precio = (it.subtotal || 0) + g
