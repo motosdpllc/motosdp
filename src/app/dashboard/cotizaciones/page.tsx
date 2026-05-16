@@ -2,14 +2,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase, fmt, fmtDate, type Cliente, type Cotizacion, type CotizacionItem } from '@/lib/supabase'
 import toast from 'react-hot-toast'
-import { FileText, Plus, X, Eye, Upload } from 'lucide-react'
+import { FileText, Plus, X, Eye, Send, Clock, CheckSquare, Square } from 'lucide-react'
 
 const EMPTY_ITEM: any = {
-  descripcion: '', link: '', ubicacion_producto: '', costo: 0,
+  descripcion: '', link: '', img_url: '', ubicacion_producto: '', costo: 0,
   taxes_impo: 0, peso_estimado: 0, costo_envio: 0, taxes_11: 0, subtotal: 0, orden: 0,
   ganancia_deseada: 0, precio_venta: 0
 }
-const COSTO_ENVIO_KG = 50 // USD por kg aéreo
+const COSTO_ENVIO_KG = 50 
 
 export default function CotizacionesPage() {
   const [vista, setVista] = useState<'lista' | 'form' | 'pdf'>('lista')
@@ -25,10 +25,23 @@ export default function CotizacionesPage() {
   const [estimandoPeso, setEstimandoPeso] = useState<number | null>(null)
   const cliDropRef = useRef<HTMLDivElement>(null)
 
+  // Opciones de visibilidad para el cliente (Envío / PDF)
+  const [visibilidad, setVisibilidad] = useState({
+    mostrarLink: false,
+    mostrarImagen: true,
+    mostrarPrecioUnitario: true,
+    mostrarPeso: false
+  })
+
+  // Estado para mensaje personalizado de WhatsApp
+  const [msgPersonalizado, setMsgPersonalizado] = useState('')
+  const [showModalProgramar, setShowModalProgramar] = useState(false)
+  const [pendingAction, setPendingAction] = useState<() => void | null>()
+
   const [f, setF] = useState({
     nro: '', fecha: new Date().toISOString().split('T')[0],
     cliente_id: '', cliente_nombre: '', destino: '', vin: '',
-    show_links: true, precio_final: 0, suma_adicional: 0,
+    precio_final: 0, suma_adicional: 0,
   })
 
   useEffect(() => {
@@ -55,7 +68,6 @@ export default function CotizacionesPage() {
   const filtCli = clientes.filter(c => cliSearch && c.nombre.toLowerCase().includes(cliSearch.toLowerCase())).slice(0, 6)
   const sinTaxes = ['ES', 'US'].includes(f.destino)
 
-  // ── RECALC ────────────────────────────────────────────
   const recalcItems = (items: any[], destino?: string) => {
     const st = destino !== undefined ? ['ES', 'US'].includes(destino) : sinTaxes
     return items.map(it => {
@@ -77,7 +89,6 @@ export default function CotizacionesPage() {
   const totalPeso = cotItems.reduce((a, x) => a + (x.peso_estimado || 0), 0)
   const ganancia = f.precio_final ? f.precio_final - totalCosto : 0
 
-  // ── NUEVA COT ─────────────────────────────────────────
   const nuevaCot = async () => {
     setEditId(null)
     const { data: cnt } = await supabase.rpc('increment_counter', { counter_key: 'cot' })
@@ -85,7 +96,7 @@ export default function CotizacionesPage() {
       nro: 'COT-' + String(cnt || 1).padStart(3, '0'),
       fecha: new Date().toISOString().split('T')[0],
       cliente_id: '', cliente_nombre: '', destino: '', vin: '',
-      show_links: true, precio_final: 0, suma_adicional: 0
+      precio_final: 0, suma_adicional: 0
     })
     setCotItems([{ ...EMPTY_ITEM }])
     setCliSearch('')
@@ -98,7 +109,7 @@ export default function CotizacionesPage() {
       nro: cot.nro, fecha: cot.fecha || '',
       cliente_id: cot.cliente_id || '', cliente_nombre: cot.cliente_nombre || '',
       destino: cot.destino || '', vin: cot.vin || '',
-      show_links: cot.show_links !== false, precio_final: cot.precio_final || 0, suma_adicional: 0
+      precio_final: cot.precio_final || 0, suma_adicional: 0
     })
     setCliSearch(cot.cliente_nombre || '')
     const items = cot.cotizacion_items?.length ? cot.cotizacion_items : [{ ...EMPTY_ITEM }]
@@ -106,17 +117,54 @@ export default function CotizacionesPage() {
     setVista('form')
   }
 
-  // ── GUARDAR ───────────────────────────────────────────
-  const guardar = async () => {
+  // ── LÓGICA DE WHATSAPP ────────────────────────────────
+  const generarTextoWhatsApp = (cotData: any, items: any[], customMsg?: string) => {
+    const cl = clientes.find(c => c.id === cotData.cliente_id)
+    let txt = customMsg ? `${customMsg}\n\n` : `Hola ${cotData.cliente_nombre || ''}, te adjunto la cotización *${cotData.nro}*:\n\n`
+    
+    items.forEach((it, idx) => {
+      txt += `*${idx + 1}. ${it.descripcion}*\n`
+      if (visibilidad.mostrarPrecioUnitario) txt += `   Precio: ${fmt(it.precio_venta || it.subtotal)} USD\n`
+      if (visibilidad.mostrarPeso && it.peso_estimado) txt += `   Peso: ${it.peso_estimado.toFixed(2)} kg\n`
+      if (visibilidad.mostrarLink && it.link) txt += `   Link: ${it.link}\n`
+      txt += `\n`
+    })
+
+    const tTotal = cotData.precio_final || items.reduce((a, x) => a + (x.subtotal || 0), 0)
+    txt += `*TOTAL FINAL: ${fmt(tTotal)} USD*`
+    
+    const telefono = cl?.telefono ? cl.telefono.replace(/[^0-9]/g, '') : ''
+    return `https://wa.me/${telefono}?text=${encodeURIComponent(txt)}`
+  }
+
+  const ejecutarEnvioWhatsApp = (cotData: any, items: any[], customMsg?: string) => {
+    const url = generarTextoWhatsApp(cotData, items, customMsg)
+    window.open(url, '_blank')
+  }
+
+  // ── GUARDAR CON OPCIONES ──────────────────────────────
+  const guardarPre = async (tipoEnvio: 'solo_guardar' | 'enviar_ya' | 'programar') => {
     if (!cotItems[0].descripcion) { toast.error('Agregá al menos un ítem'); return }
+    
+    if (tipoEnvio === 'programar') {
+      setMsgPersonalizado(`Hola ${f.cliente_nombre || ''}, te paso el presupuesto pendiente por los repuestos.`)
+      setPendingAction(() => () => procesarGuardar(tipoEnvio))
+      setShowModalProgramar(true)
+    } else {
+      await procesarGuardar(tipoEnvio)
+    }
+  }
+
+  const procesarGuardar = async (tipoEnvio: 'solo_guardar' | 'enviar_ya' | 'programar') => {
     setSaving(true)
     const payload = {
       nro: f.nro, fecha: f.fecha,
       cliente_id: f.cliente_id || null, cliente_nombre: f.cliente_nombre || null,
       destino: f.destino || null, vin: f.vin || null,
-      show_links: f.show_links, precio_final: f.precio_final || null,
+      precio_final: f.precio_final || null,
       updated_at: new Date().toISOString()
     }
+    
     let cotId = editId
     if (editId) {
       await supabase.from('cotizaciones').update(payload).eq('id', editId)
@@ -125,17 +173,26 @@ export default function CotizacionesPage() {
       const { data } = await supabase.from('cotizaciones').insert(payload).select().single()
       cotId = data?.id
     }
+
     if (cotId) {
-      // Limpiamos propiedades locales para evitar errores de estructura en Supabase
       const itemsToInsert = cotItems.map((it, i) => {
         const { ganancia_deseada, precio_venta, ...cleanItem } = it
         return { ...cleanItem, cotizacion_id: cotId, orden: i }
       })
       await supabase.from('cotizacion_items').insert(itemsToInsert)
     }
+
     toast.success('✓ Cotización guardada')
     setSaving(false)
+    setShowModalProgramar(false)
     loadAll()
+    
+    if (tipoEnvio === 'enviar_ya') {
+      ejecutarEnvioWhatsApp(payload, cotItems)
+    } else if (tipoEnvio === 'programar') {
+      ejecutarEnvioWhatsApp(payload, cotItems, msgPersonalizado)
+    }
+    
     setVista('lista')
   }
 
@@ -145,7 +202,6 @@ export default function CotizacionesPage() {
     loadAll()
   }
 
-  // ── ESTIMAR PESO IA ───────────────────────────────────
   const estimarPeso = async (i: number) => {
     const desc = cotItems[i].descripcion
     if (!desc) { toast.error('Ingresá la descripción primero'); return }
@@ -177,89 +233,127 @@ export default function CotizacionesPage() {
     setEstimandoPeso(null)
   }
 
-  // ── CONVERTIR A VENTA ─────────────────────────────────
   const convertirAVenta = (cot: any) => {
     sessionStorage.setItem('cotizacion_para_venta', JSON.stringify(cot))
     window.location.href = '/dashboard/ventas?desde_cot=' + cot.id
   }
 
-  // ── PDF ───────────────────────────────────────────────
   const verPDF = (cot: any) => { setCurrentCot(cot); setVista('pdf') }
 
+  // ── VISTA PDF / ENVIAR POSTERIOR ──────────────────────
   if (vista === 'pdf' && currentCot) {
     const items = currentCot.cotizacion_items || []
     const tPeso = items.reduce((a: number, x: any) => a + (x.peso_estimado || 0), 0)
     const tTotal = currentCot.precio_final || items.reduce((a: number, x: any) => a + (x.subtotal || 0), 0)
+    
     return (
-      <div className="p-6 max-w-3xl">
-        <div className="flex gap-2 mb-4 no-print">
-          <button onClick={() => setVista('lista')} className="btn">← Volver</button>
-          <button onClick={() => window.print()} className="btn btn-primary">🖨️ Imprimir / Guardar PDF</button>
+      <div className="p-6 max-w-5xl grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Panel de visualización a la izquierda */}
+        <div className="lg:col-span-1 bg-gray-50 p-4 rounded-xl border border-gray-200 h-fit no-print">
+          <div className="text-sm font-bold mb-3 text-gray-700">Filtros para el Cliente</div>
+          <div className="space-y-2.5">
+            <button onClick={() => setVisibilidad(p => ({ ...p, mostrarLink: !p.mostrarLink }))} className="flex items-center gap-2 text-sm text-gray-600">
+              {visibilidad.mostrarLink ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} />} Mostrar Links
+            </button>
+            <button onClick={() => setVisibilidad(p => ({ ...p, mostrarImagen: !p.mostrarImagen }))} className="flex items-center gap-2 text-sm text-gray-600">
+              {visibilidad.mostrarImagen ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} />} Mostrar Imágenes
+            </button>
+            <button onClick={() => setVisibilidad(p => ({ ...p, mostrarPrecioUnitario: !p.mostrarPrecioUnitario }))} className="flex items-center gap-2 text-sm text-gray-600">
+              {visibilidad.mostrarPrecioUnitario ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} />} Mostrar Precio Unitario
+            </button>
+            <button onClick={() => setVisibilidad(p => ({ ...p, mostrarPeso: !p.mostrarPeso }))} className="flex items-center gap-2 text-sm text-gray-600">
+              {visibilidad.mostrarPeso ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} />} Mostrar Peso Estimado
+            </button>
+          </div>
+          <hr className="my-4 border-gray-200" />
+          <button onClick={() => ejecutarEnvioWhatsApp(currentCot, items)} className="btn btn-sm w-full bg-green-600 hover:bg-green-700 text-white flex justify-center gap-1.5 mb-2">
+            <Send size={14} /> Enviar por WhatsApp
+          </button>
+          <button onClick={() => { setMsgPersonalizado(''); setPendingAction(() => () => ejecutarEnvioWhatsApp(currentCot, items, msgPersonalizado)); setShowModalProgramar(true) }} className="btn btn-sm w-full bg-amber-500 hover:bg-amber-600 text-white flex justify-center gap-1.5">
+            <Clock size={14} /> WhatsApp Personalizado
+          </button>
         </div>
-        <div id="pdf-content" style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 12, padding: '2rem', fontFamily: 'Georgia, serif', color: '#222' }}>
-          {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, borderBottom: '2px solid #111', paddingBottom: 16 }}>
-            <div>
-              {logoUrl
-                ? <img src={logoUrl} alt="Logo" style={{ height: 60, objectFit: 'contain', marginBottom: 4 }} />
-                : <div style={{ fontSize: 22, fontWeight: 700 }}>🏍️ Motos DP LLC</div>
-              }
-              <div style={{ fontSize: 13, color: '#666', fontFamily: 'system-ui' }}>Repuestos de motos</div>
-            </div>
-            <div style={{ textAlign: 'right', fontFamily: 'system-ui', fontSize: 13 }}>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>{currentCot.nro}</div>
-              <div style={{ color: '#666' }}>{fmtDate(currentCot.fecha)}</div>
-              {currentCot.destino && <div style={{ color: '#666' }}>Destino: {currentCot.destino}</div>}
-            </div>
+
+        {/* El PDF */}
+        <div className="lg:col-span-3">
+          <div className="flex gap-2 mb-4 no-print justify-between">
+            <button onClick={() => setVista('lista')} className="btn">← Volver</button>
+            <button onClick={() => window.print()} className="btn btn-primary">🖨️ Imprimir o Guardar PDF</button>
           </div>
-          {/* Cliente */}
-          <div style={{ marginBottom: 20, fontFamily: 'system-ui' }}>
-            <div style={{ fontSize: 11, color: '#666', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Cliente</div>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>{currentCot.cliente_nombre || '—'}</div>
-            {currentCot.vin && <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>VIN: {currentCot.vin}</div>}
-          </div>
-          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, fontFamily: 'system-ui' }}>Cotización de repuestos</div>
-          {/* Tabla */}
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 16, fontFamily: 'system-ui' }}>
-            <thead>
-              <tr style={{ background: '#f5f5f5' }}>
-                <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #ddd', fontWeight: 600, fontSize: 11 }}>#</th>
-                <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #ddd', fontWeight: 600, fontSize: 11 }}>Descripción</th>
-                {currentCot.show_links && <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #ddd', fontWeight: 600, fontSize: 11 }}>Link</th>}
-                <th style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #ddd', fontWeight: 600, fontSize: 11 }}>Peso</th>
-                <th style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #ddd', fontWeight: 600, fontSize: 11 }}>Precio</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((it: any, i: number) => (
-                <tr key={i}>
-                  <td style={{ padding: '8px 10px', borderBottom: '1px solid #f0f0f0' }}>{i + 1}</td>
-                  <td style={{ padding: '8px 10px', borderBottom: '1px solid #f0f0f0' }}>
-                    <strong>{it.descripcion || '—'}</strong>
-                    {it.ubicacion_producto && <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{it.ubicacion_producto}</div>}
-                  </td>
-                  {currentCot.show_links && <td style={{ padding: '8px 10px', borderBottom: '1px solid #f0f0f0', fontSize: 11 }}>
-                    {it.link ? <a href={it.link} style={{ color: '#3b82f6' }}>{it.link.substring(0, 40)}</a> : '—'}
-                  </td>}
-                  <td style={{ padding: '8px 10px', borderBottom: '1px solid #f0f0f0', textAlign: 'right' }}>
-                    {it.peso_estimado ? it.peso_estimado.toFixed(2) + ' kg' : '—'}
-                  </td>
-                  <td style={{ padding: '8px 10px', borderBottom: '1px solid #f0f0f0', textAlign: 'right' }}>
-                    {it.precio_venta ? fmt(it.precio_venta) : it.subtotal ? fmt(it.subtotal) : '—'}
-                  </td>
+          <div id="pdf-content" style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 12, padding: '2rem', fontFamily: 'Georgia, serif', color: '#222' }}>
+            {/* Header Limpio */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, borderBottom: '2px solid #111', paddingBottom: 16 }}>
+              <div>
+                {logoUrl
+                  ? <img src={logoUrl} alt="Logo" style={{ height: 60, objectFit: 'contain' }} />
+                  : <div style={{ fontSize: 22, fontWeight: 700 }}>🏍️ Motos DP LLC</div>
+                }
+              </div>
+              <div style={{ textAlign: 'right', fontFamily: 'system-ui', fontSize: 13 }}>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{currentCot.nro}</div>
+                <div style={{ color: '#666' }}>{fmtDate(currentCot.fecha)}</div>
+              </div>
+            </div>
+            {/* Cliente */}
+            <div style={{ marginBottom: 20, fontFamily: 'system-ui' }}>
+              <div style={{ fontSize: 11, color: '#666', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Cliente</div>
+              <div style={{ fontSize: 18, fontWeight: 700 }}>{currentCot.cliente_nombre || '—'}</div>
+              {currentCot.vin && <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>VIN: {currentCot.vin}</div>}
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, fontFamily: 'system-ui' }}>Cotización de repuestos</div>
+            {/* Tabla */}
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 16, fontFamily: 'system-ui' }}>
+              <thead>
+                <tr style={{ background: '#f5f5f5' }}>
+                  <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #ddd', fontWeight: 600, fontSize: 11 }}>#</th>
+                  {visibilidad.mostrarImagen && <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #ddd', fontWeight: 600, fontSize: 11 }}>Imagen</th>}
+                  <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #ddd', fontWeight: 600, fontSize: 11 }}>Descripción</th>
+                  {visibilidad.mostrarLink && <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #ddd', fontWeight: 600, fontSize: 11 }}>Link</th>}
+                  {visibilidad.mostrarPeso && <th style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #ddd', fontWeight: 600, fontSize: 11 }}>Peso</th>}
+                  <th style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #ddd', fontWeight: 600, fontSize: 11 }}>Precio</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {/* Totales */}
-          <div style={{ textAlign: 'right', fontFamily: 'system-ui' }}>
-            <div style={{ fontSize: 13 }}>Peso total estimado: <strong>{tPeso.toFixed(2)} kg</strong></div>
-            <div style={{ fontSize: 20, fontWeight: 700, marginTop: 8 }}>
-              TOTAL: {fmt(tTotal)} USD
+              </thead>
+              <tbody>
+                {items.map((it: any, i: number) => (
+                  <tr key={i}>
+                    <td style={{ padding: '8px 10px', borderBottom: '1px solid #f0f0f0' }}>{i + 1}</td>
+                    {visibilidad.mostrarImagen && (
+                      <td style={{ padding: '8px 10px', borderBottom: '1px solid #f0f0f0' }}>
+                        {it.img_url ? <img src={it.img_url} alt="" style={{ width: 40, height: 40, objectFit: 'contain', borderRadius: 4 }} /> : <div style={{ width: 40, height: 40, background: '#f3f4f6', borderRadius: 4 }} />}
+                      </td>
+                    )}
+                    <td style={{ padding: '8px 10px', borderBottom: '1px solid #f0f0f0' }}>
+                      <strong>{it.descripcion || '—'}</strong>
+                    </td>
+                    {visibilidad.mostrarLink && (
+                      <td style={{ padding: '8px 10px', borderBottom: '1px solid #f0f0f0', fontSize: 11 }}>
+                        {it.link ? <a href={it.link} style={{ color: '#3b82f6' }} target="_blank" rel="noreferrer">Ver link</a> : '—'}
+                      </td>
+                    )}
+                    {visibilidad.mostrarPeso && (
+                      <td style={{ padding: '8px 10px', borderBottom: '1px solid #f0f0f0', textAlign: 'right' }}>
+                        {it.peso_estimado ? it.peso_estimado.toFixed(2) + ' kg' : '—'}
+                      </td>
+                    )}
+                    <td style={{ padding: '8px 10px', borderBottom: '1px solid #f0f0f0', textAlign: 'right' }}>
+                      {visibilidad.mostrarPrecioUnitario 
+                        ? (it.precio_venta ? fmt(it.precio_venta) : it.subtotal ? fmt(it.subtotal) : '—') 
+                        : 'Incluido'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {/* Totales */}
+            <div style={{ textAlign: 'right', fontFamily: 'system-ui' }}>
+              {visibilidad.mostrarPeso && <div style={{ fontSize: 13 }}>Peso total estimado: <strong>{tPeso.toFixed(2)} kg</strong></div>}
+              <div style={{ fontSize: 20, fontWeight: 700, marginTop: 8 }}>
+                TOTAL: {fmt(tTotal)} USD
+              </div>
             </div>
-          </div>
-          <div style={{ marginTop: 32, fontSize: 11, color: '#aaa', textAlign: 'center', borderTop: '1px solid #eee', paddingTop: 12, fontFamily: 'system-ui' }}>
-            Cotización válida por 15 días · Precios en dólares estadounidenses
+            <div style={{ marginTop: 32, fontSize: 11, color: '#aaa', textAlign: 'center', borderTop: '1px solid #eee', paddingTop: 12, fontFamily: 'system-ui' }}>
+              Cotización válida por 15 días · Precios en dólares estadounidenses
+            </div>
           </div>
         </div>
       </div>
@@ -307,13 +401,6 @@ export default function CotizacionesPage() {
             </select>
           </div>
           <div><label className="label">VIN</label><input className="input" placeholder="Número de VIN" value={f.vin} onChange={e => setF(p => ({ ...p, vin: e.target.value }))} /></div>
-          <div>
-            <label className="label">Links en PDF</label>
-            <select className="input" value={f.show_links ? 'si' : 'no'} onChange={e => setF(p => ({ ...p, show_links: e.target.value === 'si' }))}>
-              <option value="si">Sí, mostrar links</option>
-              <option value="no">No mostrar links</option>
-            </select>
-          </div>
         </div>
       </div>
 
@@ -323,20 +410,18 @@ export default function CotizacionesPage() {
         {cotItems.map((it, i) => (
           <div key={i} className="border border-gray-200 rounded-xl p-4 mb-3 bg-gray-50">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
-              {/* Fila 1 */}
               <div className="col-span-2 md:col-span-4">
                 <label className="label">Descripción *</label>
                 <input className="input" placeholder="Nombre del repuesto" value={it.descripcion || ''} onChange={e => updateItem(i, 'descripcion', e.target.value)} />
               </div>
               <div className="col-span-2">
                 <label className="label">Link del producto</label>
-                <input className="input text-sm" placeholder="https://..." value={it.link || ''} onChange={e => updateItem(i, 'link', e.target.value)} />
+                <input className="input text-sm" placeholder="https://..." value={it.link || ''} onChange={updateItem.bind(null, i, 'link')} />
               </div>
               <div className="col-span-2">
-                <label className="label">Ubicación / proveedor</label>
-                <input className="input text-sm" placeholder="eBay, Partzilla..." value={it.ubicacion_producto || ''} onChange={e => updateItem(i, 'ubicacion_producto', e.target.value)} />
+                <label className="label">URL Imagen del Producto</label>
+                <input className="input text-sm" placeholder="https://...imagen.jpg" value={it.img_url || ''} onChange={e => updateItem(i, 'img_url', e.target.value)} />
               </div>
-              {/* Fila 2 - números */}
               <div>
                 <label className="label">Costo (USD)</label>
                 <input className="input text-sm" type="number" step="0.01" placeholder="0.00" value={it.costo || ''} onChange={e => updateItem(i, 'costo', parseFloat(e.target.value) || 0)} />
@@ -395,23 +480,20 @@ export default function CotizacionesPage() {
         ))}
         <button onClick={() => setCotItems(p => [...p, { ...EMPTY_ITEM }])} className="btn btn-sm mb-4"><Plus size={14} /> Agregar ítem</button>
 
-        {/* Resumen */}
         <div className="bg-white border border-gray-200 rounded-lg p-4">
           <div className="flex justify-between text-sm py-1"><span className="text-gray-500">Subtotal ítems (con taxes 11%)</span><span className="font-semibold">{fmt(totalCosto)}</span></div>
-          <div className="flex justify-between text-sm py-1"><span className="text-gray-500">Peso total estimado</span><span className="font-semibold">{totalPeso.toFixed(2)} kg</span></div>
-          {sinTaxes && <div className="text-xs text-green-600 py-1">✓ Sin taxes de importación ({f.destino === 'ES' ? 'España' : 'EEUU'})</div>}
+          <div className="flex justify-between text-sm py-1"><span className="text-gray-500">Peso total estimado</span><span className="font-semibold">{totalTotalPeso => totalPeso.toFixed(2)} kg</span></div>
         </div>
       </div>
 
       {/* Precio final */}
-      <div className="card mb-4">
+      <div className="card mb-6">
         <div className="text-sm font-semibold mb-3">Precio final de la cotización</div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
             <label className="label">Suma adicional (USD)</label>
             <input className="input" type="number" step="0.01" placeholder="0.00" value={f.suma_adicional || ''}
               onChange={e => { const extra = parseFloat(e.target.value) || 0; setF(p => ({ ...p, suma_adicional: extra, precio_final: totalCosto + extra })) }} />
-            <p className="text-xs text-gray-400 mt-1">Se suma al total → define precio final</p>
           </div>
           <div>
             <label className="label">Precio final (USD)</label>
@@ -426,10 +508,34 @@ export default function CotizacionesPage() {
         </div>
       </div>
 
+      {/* Botonera de Opciones de Guardado */}
       <div className="flex gap-3 pb-8 flex-wrap">
-        <button onClick={guardar} disabled={saving} className="btn btn-primary px-8">{saving ? 'Guardando...' : 'Guardar'}</button>
+        <button onClick={() => guardarPre('solo_guardar')} disabled={saving} className="btn bg-gray-700 text-white hover:bg-gray-800 px-6">
+          Guardar
+        </button>
+        <button onClick={() => guardarPre('enviar_ya')} disabled={saving} className="btn bg-green-600 text-white hover:bg-green-700 px-6 flex items-center gap-1.5">
+          <Send size={16} /> Guardar y Enviar Ya
+        </button>
+        <button onClick={() => guardarPre('programar')} disabled={saving} className="btn bg-amber-500 text-white hover:bg-amber-600 px-6 flex items-center gap-1.5">
+          <Clock size={16} /> Guardar y Programar Envío
+        </button>
         <button onClick={() => setVista('lista')} className="btn">Cancelar</button>
       </div>
+
+      {/* Modal para mensaje personalizado (Programado / Posterior) */}
+      {showModalProgramar && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-5 max-w-md w-full shadow-xl">
+            <div className="text-base font-bold mb-2">Mensaje Personalizado de WhatsApp</div>
+            <p className="text-xs text-gray-500 mb-3">Escribí o editá el texto antes de abrir la ventana de WhatsApp Web:</p>
+            <textarea className="input w-full h-32 text-sm p-2 border rounded-lg focus:outline-none" value={msgPersonalizado} onChange={e => setMsgPersonalizado(e.target.value)} />
+            <div className="flex justify-end gap-2 mt-4">
+              <button onClick={() => setShowModalProgramar(false)} className="btn btn-sm">Cancelar</button>
+              <button onClick={() => { if (pendingAction) pendingAction() }} className="btn btn-sm bg-green-600 text-white hover:bg-green-700">Abrir WhatsApp y Enviar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 
@@ -448,14 +554,14 @@ export default function CotizacionesPage() {
               <div className="flex-1 cursor-pointer" onClick={() => editarCot(c)}>
                 <div className="font-bold text-base">{c.nro} — {c.cliente_nombre || 'Sin cliente'}</div>
                 <div className="text-sm text-gray-500 mt-1">
-                  {fmtDate(c.fecha)} · {c.cotizacion_items?.length || 0} ítem{c.cotizacion_items?.length !== 1 ? 's' : ''} · {c.destino || '—'}
+                  {fmtDate(c.fecha)} · {c.cotizacion_items?.length || 0} ítem{c.cotizacion_items?.length !== 1 ? 's' : ''}
                 </div>
               </div>
               <div className="text-right flex-shrink-0">
                 <div className="font-bold text-lg">{c.precio_final ? fmt(c.precio_final) : <span className="text-gray-400 text-sm font-normal">Precio pendiente</span>}</div>
                 <div className="flex gap-2 mt-2 justify-end flex-wrap">
                   <button onClick={() => editarCot(c)} className="btn btn-sm text-xs">✏️ Editar</button>
-                  <button onClick={() => verPDF(c)} className="btn btn-sm btn-success text-xs"><Eye size={12} /> PDF</button>
+                  <button onClick={() => verPDF(c)} className="btn btn-sm bg-blue-50 text-blue-700 border-blue-200 text-xs flex items-center gap-1"><Eye size={12} /> Ver / Enviar</button>
                   <button onClick={() => convertirAVenta(c)} className="btn btn-sm text-xs bg-blue-600 text-white border-blue-600 hover:bg-blue-700">→ Convertir a venta</button>
                   <button onClick={() => eliminar(c.id)} className="btn btn-sm btn-danger text-xs">Eliminar</button>
                 </div>
