@@ -4,9 +4,10 @@ import { supabase, fmt, fmtDate, type Cliente, type Cotizacion, type CotizacionI
 import toast from 'react-hot-toast'
 import { FileText, Plus, X, Eye, Upload } from 'lucide-react'
 
-const EMPTY_ITEM: CotizacionItem = {
+const EMPTY_ITEM: any = {
   descripcion: '', link: '', ubicacion_producto: '', costo: 0,
-  taxes_impo: 0, peso_estimado: 0, costo_envio: 0, taxes_11: 0, subtotal: 0, orden: 0
+  taxes_impo: 0, peso_estimado: 0, costo_envio: 0, taxes_11: 0, subtotal: 0, orden: 0,
+  ganancia_deseada: 0, precio_venta: 0
 }
 const COSTO_ENVIO_KG = 50 // USD por kg aéreo
 
@@ -18,7 +19,7 @@ export default function CotizacionesPage() {
   const [currentCot, setCurrentCot] = useState<any>(null)
   const [cliSearch, setCliSearch] = useState('')
   const [showCliDrop, setShowCliDrop] = useState(false)
-  const [cotItems, setCotItems] = useState<CotizacionItem[]>([{ ...EMPTY_ITEM }])
+  const [cotItems, setCotItems] = useState<any[]>([{ ...EMPTY_ITEM }])
   const [saving, setSaving] = useState(false)
   const [logoUrl, setLogoUrl] = useState('')
   const [estimandoPeso, setEstimandoPeso] = useState<number | null>(null)
@@ -55,19 +56,18 @@ export default function CotizacionesPage() {
   const sinTaxes = ['ES', 'US'].includes(f.destino)
 
   // ── RECALC ────────────────────────────────────────────
-  const recalcItems = (items: CotizacionItem[], destino?: string) => {
+  const recalcItems = (items: any[], destino?: string) => {
     const st = destino !== undefined ? ['ES', 'US'].includes(destino) : sinTaxes
     return items.map(it => {
       const taxes11 = (it.costo || 0) * 0.11
       const taxesImpo = st ? 0 : (it.taxes_impo || 0)
-      // Auto calcular envío si hay peso
       const costoEnvio = it.peso_estimado ? it.peso_estimado * COSTO_ENVIO_KG : (it.costo_envio || 0)
       const subtotal = (it.costo || 0) + taxes11 + taxesImpo + costoEnvio
       return { ...it, taxes_11: taxes11, costo_envio: costoEnvio, subtotal }
     })
   }
 
-  const updateItem = (i: number, field: keyof CotizacionItem, val: any) => {
+  const updateItem = (i: number, field: string, val: any) => {
     const updated = [...cotItems]
     updated[i] = { ...updated[i], [field]: val }
     setCotItems(recalcItems(updated))
@@ -126,9 +126,12 @@ export default function CotizacionesPage() {
       cotId = data?.id
     }
     if (cotId) {
-      await supabase.from('cotizacion_items').insert(
-        cotItems.map((it, i) => ({ ...it, cotizacion_id: cotId, orden: i }))
-      )
+      // Limpiamos propiedades locales para evitar errores de estructura en Supabase
+      const itemsToInsert = cotItems.map((it, i) => {
+        const { ganancia_deseada, precio_venta, ...cleanItem } = it
+        return { ...cleanItem, cotizacion_id: cotId, orden: i }
+      })
+      await supabase.from('cotizacion_items').insert(itemsToInsert)
     }
     toast.success('✓ Cotización guardada')
     setSaving(false)
@@ -176,7 +179,6 @@ export default function CotizacionesPage() {
 
   // ── CONVERTIR A VENTA ─────────────────────────────────
   const convertirAVenta = (cot: any) => {
-    // Guardar en sessionStorage para que la página de ventas la lea
     sessionStorage.setItem('cotizacion_para_venta', JSON.stringify(cot))
     window.location.href = '/dashboard/ventas?desde_cot=' + cot.id
   }
@@ -362,7 +364,7 @@ export default function CotizacionesPage() {
               </div>
               <div>
                 <label className="label">Ganancia deseada (USD)</label>
-                <input className="input text-sm" type="number" step="0.01" placeholder="0.00" value={(it as any).ganancia_deseada || ''}
+                <input className="input text-sm" type="number" step="0.01" placeholder="0.00" value={it.ganancia_deseada || ''}
                   onChange={e => {
                     const g = parseFloat(e.target.value) || 0
                     const precio = (it.subtotal || 0) + g
