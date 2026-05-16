@@ -73,7 +73,7 @@ export default function ScannerPage() {
       const codeReader = new BrowserMultiFormatReader()
       readerRef.current = codeReader
       toast('Buscando código...', { duration: 2000 })
-      const result = await codeReader.decodeOnceFromVideoElement(videoRef.current)
+      const result = await codeReader.decodeFromVideoElement(videoRef.current)
       if (result) {
         const code = result.getText()
         toast.success('Código leído: ' + code)
