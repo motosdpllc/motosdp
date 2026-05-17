@@ -396,7 +396,7 @@ export default function CotizacionesPage() {
                 <thead>
                   <tr style={{ background: '#f5f5f5' }}>
                     <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #ddd', fontWeight: 600, fontSize: 11 }}>#</th>
-                    {visibilidad.mostrar樣 && <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #ddd', fontWeight: 600, fontSize: 11 }}>Imagen</th>}
+                    {visibilidad.mostrarImagen && <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #ddd', fontWeight: 600, fontSize: 11 }}>Imagen</th>}
                     <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #ddd', fontWeight: 600, fontSize: 11 }}>Descripción</th>
                     {visibilidad.mostrarLink && <th style={{ padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #ddd', fontWeight: 600, fontSize: 11 }}>Link</th>}
                     {visibilidad.mostrarPeso && <th style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #ddd', fontWeight: 600, fontSize: 11 }}>Peso</th>}
