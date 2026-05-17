@@ -171,7 +171,7 @@ export default function CotizacionesPage() {
     loadAll()
     
     if (tipoEnvio === 'enviar_ya') {
-      ejecutarEnvioWhatsApp(payload)
+      <button onClick={() => { setFechaEnvio(new Date().toISOString().split('T')[0]); setHoraEnvio('10:00'); setShowModalProgramar(true) }} className="btn btn-sm w-full bg-amber-500 hover:bg-amber-600 text-white flex justify-center gap-1.5">
     }
     
     setVista('lista')
