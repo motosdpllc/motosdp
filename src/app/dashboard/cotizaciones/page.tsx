@@ -120,14 +120,13 @@ export default function CotizacionesPage() {
     setVista('form')
   }
 
+  // Disparador manual e inmediato (Botón Verde)
   const ejecutarEnvioWhatsApp = (cotData: any) => {
     const cl = clientes.find(c => c.id === cotData.cliente_id)
     const telefono = cl?.telefono ? cl.telefono.replace(/[^0-9]/g, '') : ''
     
-    // Texto base automático
     let texto = `Hola ${cotData.cliente_nombre || ''}, te adjunto la cotización ${cotData.nro}.`
     
-    // Si escribió una nota, la sumamos abajo con un salto de línea
     if (mensajePersonalizado.trim()) {
       texto += `\n\n${mensajePersonalizado.trim()}`
     }
@@ -141,21 +140,34 @@ export default function CotizacionesPage() {
     
     if (tipoEnvio === 'programar') {
       setFechaEnvio(new Date().toISOString().split('T')[0])
-      setHoraEnvio('10:00')
+      setHoraEnvio('10:00') // Por defecto sugiere las 10am (podés cambiarlo a las 09:00 si preferís)
       setShowModalProgramar(true)
     } else {
       await procesarGuardar(tipoEnvio)
     }
   }
 
-  const procesarGuardar = async (tipoEnvio: 'solo_guardar' | 'enviar_ya' | 'programar') => {
+  // Procesa el guardado definitivo inyectando la info de la automatización si corresponde
+  const procesarGuardar = async (tipoEnvio: 'solo_guardar' | 'enviar_ya' | 'programar', dataProgramacion?: { fecha: string, hora: string }) => {
     setSaving(true)
-    const payload = {
-      nro: f.nro, fecha: f.fecha,
-      cliente_id: f.cliente_id || null, cliente_nombre: f.cliente_nombre || null,
-      destino: f.destino || null, vin: f.vin || null,
+    
+    const timestampProgramado = dataProgramacion 
+      ? `${dataProgramacion.fecha}T${dataProgramacion.hora}:00` 
+      : null
+
+    const payload: any = {
+      nro: f.nro, 
+      fecha: f.fecha,
+      cliente_id: f.cliente_id || null, 
+      cliente_nombre: f.cliente_nombre || null,
+      destino: f.destino || null, 
+      vin: f.vin || null,
       precio_final: f.precio_final || null,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      // Nuevos campos para desligarte y que el backend resuelva el envío
+      enviar_automatico: tipoEnvio === 'programar',
+      fecha_envio_programado: timestampProgramado,
+      mensaje_whatsapp: mensajePersonalizado.trim() || null
     }
     
     let cotId = editId
@@ -175,29 +187,45 @@ export default function CotizacionesPage() {
       await supabase.from('cotizacion_items').insert(itemsToInsert)
     }
 
-    toast.success('✓ Cotización guardada')
     setSaving(false)
     loadAll()
     
     if (tipoEnvio === 'enviar_ya') {
       ejecutarEnvioWhatsApp(payload)
+      toast.success('✓ Cotización guardada y WhatsApp abierto')
+    } else if (tipoEnvio === 'programar') {
+      toast.success(`📅 Agendado para el ${fmtDate(dataProgramacion!.fecha)} a las ${dataProgramacion!.hora}hs (Se enviará solo)`)
+    } else {
+      toast.success('✓ Cotización guardada')
     }
     
     setVista('lista')
   }
 
-  const handleModalConfirm = () => {
+  // Al confirmar el modal del botón naranja, guarda la cotización con la bandera de auto-envío
+  const handleModalConfirm = async () => {
     if (!fechaEnvio || !horaEnvio) {
       toast.error('Por favor selecciona fecha y hora')
       return
     }
-    toast.success(`📅 Envío agendado para el ${fmtDate(fechaEnvio)} a las ${horaEnvio} hs`)
     setShowModalProgramar(false)
     
     if (vista === 'pdf' && currentCot) {
-      ejecutarEnvioWhatsApp(currentCot)
+      // Si estamos visualizando un PDF ya existente, actualizamos sus datos de envío diferido
+      setSaving(true)
+      const timestampProgramado = `${fechaEnvio}T${horaEnvio}:00`
+      await supabase.from('cotizaciones').update({
+        enviar_automatico: true,
+        fecha_envio_programado: timestampProgramado,
+        mensaje_whatsapp: mensajePersonalizado.trim() || null
+      }).eq('id', currentCot.id)
+      setSaving(false)
+      loadAll()
+      toast.success(`📅 Seguimiento programado con éxito para las ${horaEnvio}hs`)
+      setVista('lista')
     } else {
-      procesarGuardar('solo_guardar')
+      // Si venimos del formulario de creación/edición directa
+      await procesarGuardar('programar', { fecha: fechaEnvio, hora: horaEnvio })
     }
   }
 
@@ -245,25 +273,24 @@ export default function CotizacionesPage() {
 
   const verPDF = (cot: any) => { 
     setCurrentCot(cot)
-    setMensajePersonalizado('') // Limpiar el mensaje previo
+    setMensajePersonalizado(cot.mensaje_whatsapp || '') 
     setVista('pdf') 
   }
 
-  // Variables calculadas para el render del PDF externo
   const itemsPdf = currentCot?.cotizacion_items || []
   const tPesoPdf = itemsPdf.reduce((a: number, x: any) => a + (x.peso_estimado || 0), 0)
   const tTotalPdf = currentCot?.precio_final || itemsPdf.reduce((a: number, x: any) => a + (x.subtotal || 0), 0)
 
   return (
     <div className="relative">
-      {/* MODAL GLOBAL PARA EL BOTÓN NARANJA */}
+      {/* MODAL DE PROGRAMACIÓN */}
       {showModalProgramar && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-5 max-w-md w-full shadow-xl">
             <div className="text-base font-bold mb-2 flex items-center gap-2 text-amber-600">
-              <Clock size={18} /> Programar Seguimiento de Envío
+              <Clock size={18} /> Programar Envío Automático
             </div>
-            <p className="text-xs text-gray-500 mb-4">Elegí la fecha y hora estimada en la que querés dejar asentado el envío para este cliente:</p>
+            <p className="text-xs text-gray-500 mb-4">Seteá el momento en que se enviará este presupuesto de forma automática por el backend:</p>
             
             <div className="space-y-3">
               <div>
@@ -294,12 +321,12 @@ export default function CotizacionesPage() {
         </div>
       )}
 
-      {/* RENDER DE VISTAS */}
+      {/* VISTA PDF */}
       {vista === 'pdf' && currentCot && (
         <div className="p-6 max-w-5xl grid grid-cols-1 lg:grid-cols-4 gap-6">
           <div className="lg:col-span-1 bg-gray-50 p-4 rounded-xl border border-gray-200 h-fit no-print">
             <div className="text-sm font-bold mb-3 text-gray-700">Filtros para el Cliente</div>
-            <div className="space-y-2.5">
+            <div className="space-y-2.5 mb-4">
               <button onClick={() => setVisibilidad(p => ({ ...p, mostrarLink: !p.mostrarLink }))} className="flex items-center gap-2 text-sm text-gray-600">
                 {visibilidad.mostrarLink ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} />} Mostrar Links
               </button>
@@ -316,11 +343,10 @@ export default function CotizacionesPage() {
             
             <hr className="my-4 border-gray-200" />
             
-            {/* CUADRO DE MENSAJE PERSONALIZADO */}
             <div className="mb-4">
               <label className="block text-xs font-bold text-gray-700 mb-1">Nota o mensaje personalizado:</label>
               <textarea
-                className="w-full p-2 text-xs border border-gray-300 rounded-lg bg-white focus:outline-none focus:border-blue-500 resize-none"
+                className="w-full p-2 text-xs border border-gray-300 rounded-lg bg-white focus:outline-none focus:border-blue-500 resize-none block"
                 rows={3}
                 placeholder="Ej: Avisame si te sirve y te lo separo..."
                 value={mensajePersonalizado}
@@ -328,11 +354,11 @@ export default function CotizacionesPage() {
               />
             </div>
 
-            <button onClick={() => ejecutarEnvioWhatsApp(currentCot)} className="btn btn-sm w-full bg-green-600 hover:bg-green-700 text-white flex justify-center gap-1.5 mb-2">
-              <Send size={14} /> Enviar por WhatsApp
+            <button onClick={() => ejecutarEnvioWhatsApp(currentCot)} className="btn btn-sm w-full bg-green-600 hover:bg-green-700 text-white flex justify-center gap-1.5 mb-2 py-2 font-medium">
+              <Send size={14} /> Enviar por WhatsApp Ya
             </button>
-            <button onClick={() => { setFechaEnvio(new Date().toISOString().split('T')[0]); setHoraEnvio('10:00'); setShowModalProgramar(true) }} className="btn btn-sm w-full bg-amber-500 hover:bg-amber-600 text-white flex justify-center gap-1.5">
-              <Clock size={14} /> WhatsApp Personalizado
+            <button onClick={() => { setFechaEnvio(new Date().toISOString().split('T')[0]); setHoraEnvio('09:00'); setShowModalProgramar(true) }} className="btn btn-sm w-full bg-amber-500 hover:bg-amber-600 text-white flex justify-center gap-1.5 py-2 font-medium">
+              <Clock size={14} /> Dejar Programado (Desligarme)
             </button>
           </div>
 
@@ -341,6 +367,7 @@ export default function CotizacionesPage() {
               <button onClick={() => setVista('lista')} className="btn">← Volver</button>
               <button onClick={() => window.print()} className="btn btn-primary">🖨️ Imprimir o Guardar PDF</button>
             </div>
+            {/* Contenido Renderizado del PDF */}
             <div id="pdf-content" style={{ background: '#fff', border: '1px solid #ddd', borderRadius: 12, padding: '2rem', fontFamily: 'Georgia, serif', color: '#222' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, borderBottom: '2px solid #111', paddingBottom: 16 }}>
                 <div>
@@ -356,7 +383,6 @@ export default function CotizacionesPage() {
                 <div style={{ fontSize: 18, fontWeight: 700 }}>{currentCot.cliente_nombre || '—'}</div>
                 {currentCot.vin && <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>VIN: {currentCot.vin}</div>}
               </div>
-              <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, fontFamily: 'system-ui' }}>Cotización de repuestos</div>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginBottom: 16, fontFamily: 'system-ui' }}>
                 <thead>
                   <tr style={{ background: '#f5f5f5' }}>
@@ -395,14 +421,12 @@ export default function CotizacionesPage() {
                 {visibilidad.mostrarPeso && <div style={{ fontSize: 13 }}>Peso total estimado: <strong>{tPesoPdf.toFixed(2)} kg</strong></div>}
                 <div style={{ fontSize: 20, fontWeight: 700, marginTop: 8 }}>TOTAL: {fmt(tTotalPdf)} USD</div>
               </div>
-              <div style={{ marginTop: 32, fontSize: 11, color: '#aaa', textAlign: 'center', borderTop: '1px solid #eee', paddingTop: 12, fontFamily: 'system-ui' }}>
-                Cotización válida por 15 días · Precios en dólares estadounidenses
-              </div>
             </div>
           </div>
         </div>
       )}
 
+      {/* VISTA FORMULARIO */}
       {vista === 'form' && (
         <div className="p-6 max-w-5xl">
           <h1 className="text-2xl font-bold mb-6">{editId ? 'Editar — ' + f.nro : 'Nueva cotización'}</h1>
@@ -486,12 +510,13 @@ export default function CotizacionesPage() {
           <div className="flex gap-3 pb-8 flex-wrap">
             <button onClick={() => guardarPre('solo_guardar')} disabled={saving} className="btn bg-gray-700 text-white hover:bg-gray-800 px-6">Guardar</button>
             <button onClick={() => guardarPre('enviar_ya')} disabled={saving} className="btn bg-green-600 text-white hover:bg-green-700 px-6 flex items-center gap-1.5"><Send size={16} /> Guardar y Enviar Ya</button>
-            <button onClick={() => guardarPre('programar')} disabled={saving} className="btn bg-amber-500 text-white hover:bg-amber-600 px-6 flex items-center gap-1.5"><Clock size={16} /> Guardar y Programar Envío</button>
+            <button onClick={() => guardarPre('programar')} disabled={saving} className="btn bg-amber-500 text-white hover:bg-amber-600 px-6 flex items-center gap-1.5"><Clock size={16} /> Dejar Programado (Desligarme)</button>
             <button onClick={() => setVista('lista')} className="btn">Cancelar</button>
           </div>
         </div>
       )}
 
+      {/* VISTA LISTA */}
       {vista === 'lista' && (
         <div className="p-6 max-w-4xl">
           <div className="flex items-center justify-between mb-6">
@@ -505,7 +530,10 @@ export default function CotizacionesPage() {
               <div key={c.id} className="card mb-3 hover:border-gray-400 transition-all">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 cursor-pointer" onClick={() => editarCot(c)}>
-                    <div className="font-bold text-base">{c.nro} — {c.cliente_nombre || 'Sin cliente'}</div>
+                    <div className="font-bold text-base">
+                      {c.nro} — {c.cliente_nombre || 'Sin cliente'} 
+                      {c.enviar_automatico && <span className="ml-2 text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-medium">🕒 Programado</span>}
+                    </div>
                     <div className="text-sm text-gray-500 mt-1">{fmtDate(c.fecha)} · {c.cotizacion_items?.length || 0} ítem(s)</div>
                   </div>
                   <div className="text-right flex-shrink-0">
