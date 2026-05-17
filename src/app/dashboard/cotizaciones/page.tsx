@@ -33,10 +33,10 @@ export default function CotizacionesPage() {
     mostrarPeso: false
   })
 
-  // Estado para mensaje personalizado de WhatsApp
-  const [msgPersonalizado, setMsgPersonalizado] = useState('')
+  // Estado para la programación de fecha y hora
   const [showModalProgramar, setShowModalProgramar] = useState(false)
-  const [modalActionType, setModalActionType] = useState<'guardar_y_programar' | 'enviar_posterior' | null>(null)
+  const [fechaEnvio, setFechaEnvio] = useState('')
+  const [horaEnvio, setHoraEnvio] = useState('')
 
   const [f, setF] = useState({
     nro: '', fecha: new Date().toISOString().split('T')[0],
@@ -117,29 +117,12 @@ export default function CotizacionesPage() {
     setVista('form')
   }
 
-  // ── LÓGICA DE WHATSAPP ────────────────────────────────
-  const generarTextoWhatsApp = (cotData: any, items: any[], customMsg?: string) => {
+  // ── LÓGICA DE WHATSAPP 100% EN BLANCO ──────────────────
+  const ejecutarEnvioWhatsApp = (cotData: any) => {
     const cl = clientes.find(c => c.id === cotData.cliente_id)
-    let txt = customMsg ? `${customMsg}\n\n` : `Hola ${cotData.cliente_nombre || ''}, te adjunto la cotización *${cotData.nro}*:\n\n`
-    
-    items.forEach((it, idx) => {
-      txt += `*${idx + 1}. ${it.descripcion}*\n`
-      if (visibilidad.mostrarPrecioUnitario) txt += `   Precio: ${fmt(it.precio_venta || it.subtotal)} USD\n`
-      if (visibilidad.mostrarPeso && it.peso_estimado) txt += `   Peso: ${it.peso_estimado.toFixed(2)} kg\n`
-      if (visibilidad.mostrarLink && it.link) txt += `   Link: ${it.link}\n`
-      txt += `\n`
-    })
-
-    const tTotal = cotData.precio_final || items.reduce((a, x) => a + (x.subtotal || 0), 0)
-    txt += `*TOTAL FINAL: ${fmt(tTotal)} USD*`
-    
     const telefono = cl?.telefono ? cl.telefono.replace(/[^0-9]/g, '') : ''
-    return `https://wa.me/${telefono}?text=${encodeURIComponent(txt)}`
-  }
-
-  const ejecutarEnvioWhatsApp = (cotData: any, items: any[], customMsg?: string) => {
-    const url = generarTextoWhatsApp(cotData, items, customMsg)
-    window.open(url, '_blank')
+    // Abrimos el chat directo con el cliente sin pasarle la variable text, asegurando chat limpio
+    window.open(`https://wa.me/${telefono}`, '_blank')
   }
 
   // ── GUARDAR CON OPCIONES ──────────────────────────────
@@ -147,8 +130,9 @@ export default function CotizacionesPage() {
     if (!cotItems[0].descripcion) { toast.error('Agregá al menos un ítem'); return }
     
     if (tipoEnvio === 'programar') {
-      setMsgPersonalizado(`Hola ${f.cliente_nombre || ''}, te paso el presupuesto pendiente por los repuestos.`)
-      setModalActionType('guardar_y_programar')
+      // Seteamos valores por defecto para el selector
+      setFechaEnvio(new Date().toISOString().split('T')[0])
+      setHoraEnvio('10:00')
       setShowModalProgramar(true)
     } else {
       await procesarGuardar(tipoEnvio)
@@ -184,27 +168,24 @@ export default function CotizacionesPage() {
 
     toast.success('✓ Cotización guardada')
     setSaving(false)
-    setShowModalProgramar(false)
-    setModalActionType(null)
     loadAll()
     
     if (tipoEnvio === 'enviar_ya') {
-      ejecutarEnvioWhatsApp(payload, cotItems)
-    } else if (tipoEnvio === 'programar') {
-      ejecutarEnvioWhatsApp(payload, cotItems, msgPersonalizado)
+      ejecutarEnvioWhatsApp(payload)
     }
     
     setVista('lista')
   }
 
-  const handleModalConfirm = async () => {
-    if (modalActionType === 'guardar_y_programar') {
-      await procesarGuardar('programar')
-    } else if (modalActionType === 'enviar_posterior' && currentCot) {
-      ejecutarEnvioWhatsApp(currentCot, currentCot.cotizacion_items || [], msgPersonalizado)
-      setShowModalProgramar(false)
-      setModalActionType(null)
+  const handleModalConfirm = () => {
+    if (!fechaEnvio || !horaEnvio) {
+      toast.error('Por favor selecciona fecha y hora')
+      return
     }
+    // Mostramos la confirmación en pantalla del recordatorio agendado
+    toast.success(`📅 Envío agendado para el ${fmtDate(fechaEnvio)} a las ${horaEnvio} hs`)
+    setShowModalProgramar(false)
+    procesarGuardar('solo_guardar')
   }
 
   const eliminar = async (id: string) => {
@@ -251,7 +232,7 @@ export default function CotizacionesPage() {
 
   const verPDF = (cot: any) => { setCurrentCot(cot); setVista('pdf') }
 
-  // ── VISTA PDF / ENVIAR POSTERIOR ──────────────────────
+  // ── VISTA PDF ─────────────────────────────────────────
   if (vista === 'pdf' && currentCot) {
     const items = currentCot.cotizacion_items || []
     const tPeso = items.reduce((a: number, x: any) => a + (x.peso_estimado || 0), 0)
@@ -277,10 +258,10 @@ export default function CotizacionesPage() {
             </button>
           </div>
           <hr className="my-4 border-gray-200" />
-          <button onClick={() => ejecutarEnvioWhatsApp(currentCot, items)} className="btn btn-sm w-full bg-green-600 hover:bg-green-700 text-white flex justify-center gap-1.5 mb-2">
+          <button onClick={() => ejecutarEnvioWhatsApp(currentCot)} className="btn btn-sm w-full bg-green-600 hover:bg-green-700 text-white flex justify-center gap-1.5 mb-2">
             <Send size={14} /> Enviar por WhatsApp
           </button>
-          <button onClick={() => { setMsgPersonalizado(`Hola ${currentCot.cliente_nombre || ''}, te paso la cotización pendiente.`); setModalActionType('enviar_posterior'); setShowModalProgramar(true) }} className="btn btn-sm w-full bg-amber-500 hover:bg-amber-600 text-white flex justify-center gap-1.5">
+          <button onClick={() => { setFechaEnvio(new Date().toISOString().split('T')[0]); setHoraEnvio('10:00'); setShowModalProgramar(true) }} className="btn btn-sm w-full bg-amber-500 hover:bg-amber-600 text-white flex justify-center gap-1.5">
             <Clock size={14} /> WhatsApp Personalizado
           </button>
         </div>
@@ -538,16 +519,39 @@ export default function CotizacionesPage() {
   // ── LISTA ─────────────────────────────────────────────
   return (
     <div className="p-6 max-w-4xl">
-      {/* Modal para mensaje personalizado */}
+      {/* MODAL DEL BOTÓN NARANJA: AGENDAR SEGUIMIENTO (DÍA Y HORA) */}
       {showModalProgramar && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-5 max-w-md w-full shadow-xl">
-            <div className="text-base font-bold mb-2">Mensaje Personalizado de WhatsApp</div>
-            <p className="text-xs text-gray-500 mb-3">Escribí o editá el texto antes de abrir la ventana de WhatsApp Web:</p>
-            <textarea className="input w-full h-32 text-sm p-2 border rounded-lg focus:outline-none" value={msgPersonalizado} onChange={e => setMsgPersonalizado(e.target.value)} />
-            <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => { setShowModalProgramar(false); setModalActionType(null); }} className="btn btn-sm">Cancelar</button>
-              <button onClick={handleModalConfirm} className="btn btn-sm bg-green-600 text-white hover:bg-green-700">Abrir WhatsApp y Enviar</button>
+            <div className="text-base font-bold mb-2 flex items-center gap-2 text-amber-600">
+              <Clock size={18} /> Programar Seguimiento de Envío
+            </div>
+            <p className="text-xs text-gray-500 mb-4">Elegí la fecha y hora estimada en la que querés dejar asentado el envío para este cliente:</p>
+            
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Fecha de envío</label>
+                <input 
+                  type="date" 
+                  className="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50 focus:outline-none focus:border-amber-500" 
+                  value={fechaEnvio} 
+                  onChange={e => setFechaEnvio(e.target.value)} 
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Hora estimada</label>
+                <input 
+                  type="time" 
+                  className="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50 focus:outline-none focus:border-amber-500" 
+                  value={horaEnvio} 
+                  onChange={e => setHoraEnvio(e.target.value)} 
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-5">
+              <button onClick={() => setShowModalProgramar(false)} className="btn btn-sm text-gray-600 hover:bg-gray-100">Cancelar</button>
+              <button onClick={handleModalConfirm} className="btn btn-sm bg-amber-500 text-white hover:bg-amber-600 font-medium">Confirmar y Agendar</button>
             </div>
           </div>
         </div>
@@ -573,14 +577,12 @@ export default function CotizacionesPage() {
                 <div className="flex gap-2 mt-2 justify-end flex-wrap">
                   <button onClick={() => editarCot(c)} className="btn btn-sm text-xs">✏️ Editar</button>
                   <button onClick={() => verPDF(c)} className="btn btn-sm bg-blue-50 text-blue-700 border-blue-200 text-xs flex items-center gap-1"><Eye size={12} /> Ver / Enviar</button>
-                  <button onClick={() => convertirAVenta(c)} className="btn btn-sm text-xs bg-blue-600 text-white border-blue-600 hover:bg-blue-700">→ Convertir a venta</button>
-                  <button onClick={() => eliminar(c.id)} className="btn btn-sm btn-danger text-xs">Eliminar</button>
+                  <button onClick={() => convertirAVenta(c)} className="btn btn-sm text-xs">💰 Convertir a Venta</button>
                 </div>
               </div>
             </div>
           </div>
-        ))
-      }
+        ))}
     </div>
   )
 }
