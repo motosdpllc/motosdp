@@ -127,7 +127,7 @@ function NuevoForm() {
   return (
     <div className="p-6 max-w-4xl">
       <h1 className="text-2xl font-bold mb-6">{editId ? 'Editar ítem' : 'Nuevo ítem'}</h1>
-      {!editId && <BotonIA linkProducto={f.link_producto} setLinkProducto={(v) => setF(p => ({ ...p, link_producto: v }))} setF={setF} />}
+{!editId && <BotonIA linkProducto={f.link_producto} setLinkProducto={(v: string) => setF(p => ({ ...p, link_producto: v }))} setF={setF} />}
       {!editId && <SelectorCotizacion cotizaciones={cotizaciones} setF={setF} setCliSearch={setCliSearch} cotDropRef={cotDropRef} />}
       <div className="space-y-4">
         <div className="card">
