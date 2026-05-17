@@ -181,7 +181,6 @@ export default function CotizacionesPage() {
     toast.success(`📅 Envío agendado para el ${fmtDate(fechaEnvio)} a las ${horaEnvio} hs`)
     setShowModalProgramar(false)
     
-    // Si estamos en la vista de PDF, usamos el currentCot en vez del formulario
     if (vista === 'pdf' && currentCot) {
       ejecutarEnvioWhatsApp(currentCot)
     } else {
@@ -233,9 +232,14 @@ export default function CotizacionesPage() {
 
   const verPDF = (cot: any) => { setCurrentCot(cot); setVista('pdf') }
 
+  // Variables calculadas para el render del PDF externo
+  const itemsPdf = currentCot?.cotizacion_items || []
+  const tPesoPdf = itemsPdf.reduce((a: number, x: any) => a + (x.peso_estimado || 0), 0)
+  const tTotalPdf = currentCot?.precio_final || itemsPdf.reduce((a: number, x: any) => a + (x.subtotal || 0), 0)
+
   return (
     <div className="relative">
-      {/* MODAL GLOBAL PARA EL BOTÓN NARANJA (Funciona en cualquier vista) */}
+      {/* MODAL GLOBAL PARA EL BOTÓN NARANJA */}
       {showModalProgramar && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl p-5 max-w-md w-full shadow-xl">
@@ -334,7 +338,7 @@ export default function CotizacionesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((it: any, i: number) => (
+                  {itemsPdf.map((it: any, i: number) => (
                     <tr key={i}>
                       <td style={{ padding: '8px 10px', borderBottom: '1px solid #f0f0f0' }}>{i + 1}</td>
                       {visibilidad.mostrarImagen && (
@@ -357,8 +361,8 @@ export default function CotizacionesPage() {
                 </tbody>
               </table>
               <div style={{ textAlign: 'right', fontFamily: 'system-ui' }}>
-                {visibilidad.mostrarPeso && <div style={{ fontSize: 13 }}>Peso total estimado: <strong>{tPeso.toFixed(2)} kg</strong></div>}
-                <div style={{ fontSize: 20, fontWeight: 700, marginTop: 8 }}>TOTAL: {fmt(tTotal)} USD</div>
+                {visibilidad.mostrarPeso && <div style={{ fontSize: 13 }}>Peso total estimado: <strong>{tPesoPdf.toFixed(2)} kg</strong></div>}
+                <div style={{ fontSize: 20, fontWeight: 700, marginTop: 8 }}>TOTAL: {fmt(tTotalPdf)} USD</div>
               </div>
               <div style={{ marginTop: 32, fontSize: 11, color: '#aaa', textAlign: 'center', borderTop: '1px solid #eee', paddingTop: 12, fontFamily: 'system-ui' }}>
                 Cotización válida por 15 días · Precios en dólares estadounidenses
