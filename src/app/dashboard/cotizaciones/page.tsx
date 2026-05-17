@@ -38,6 +38,9 @@ export default function CotizacionesPage() {
   const [fechaEnvio, setFechaEnvio] = useState('')
   const [horaEnvio, setHoraEnvio] = useState('')
 
+  // Estado para el mensaje personalizado de WhatsApp
+  const [mensajePersonalizado, setMensajePersonalizado] = useState('')
+
   const [f, setF] = useState({
     nro: '', fecha: new Date().toISOString().split('T')[0],
     cliente_id: '', cliente_nombre: '', destino: '', vin: '',
@@ -120,7 +123,17 @@ export default function CotizacionesPage() {
   const ejecutarEnvioWhatsApp = (cotData: any) => {
     const cl = clientes.find(c => c.id === cotData.cliente_id)
     const telefono = cl?.telefono ? cl.telefono.replace(/[^0-9]/g, '') : ''
-    window.open(`https://wa.me/${telefono}`, '_blank')
+    
+    // Texto base automático
+    let texto = `Hola ${cotData.cliente_nombre || ''}, te adjunto la cotización ${cotData.nro}.`
+    
+    // Si escribió una nota, la sumamos abajo con un salto de línea
+    if (mensajePersonalizado.trim()) {
+      texto += `\n\n${mensajePersonalizado.trim()}`
+    }
+
+    const url = `https://wa.me/${telefono}?text=${encodeURIComponent(texto)}`
+    window.open(url, '_blank')
   }
 
   const guardarPre = async (tipoEnvio: 'solo_guardar' | 'enviar_ya' | 'programar') => {
@@ -230,7 +243,11 @@ export default function CotizacionesPage() {
     window.location.href = '/dashboard/ventas?desde_cot=' + cot.id
   }
 
-  const verPDF = (cot: any) => { setCurrentCot(cot); setVista('pdf') }
+  const verPDF = (cot: any) => { 
+    setCurrentCot(cot)
+    setMensajePersonalizado('') // Limpiar el mensaje previo
+    setVista('pdf') 
+  }
 
   // Variables calculadas para el render del PDF externo
   const itemsPdf = currentCot?.cotizacion_items || []
@@ -296,7 +313,21 @@ export default function CotizacionesPage() {
                 {visibilidad.mostrarPeso ? <CheckSquare size={16} className="text-blue-600" /> : <Square size={16} />} Mostrar Peso Estimado
               </button>
             </div>
+            
             <hr className="my-4 border-gray-200" />
+            
+            {/* CUADRO DE MENSAJE PERSONALIZADO */}
+            <div className="mb-4">
+              <label className="block text-xs font-bold text-gray-700 mb-1">Nota o mensaje personalizado:</label>
+              <textarea
+                className="w-full p-2 text-xs border border-gray-300 rounded-lg bg-white focus:outline-none focus:border-blue-500 resize-none"
+                rows={3}
+                placeholder="Ej: Avisame si te sirve y te lo separo..."
+                value={mensajePersonalizado}
+                onChange={e => setMensajePersonalizado(e.target.value)}
+              />
+            </div>
+
             <button onClick={() => ejecutarEnvioWhatsApp(currentCot)} className="btn btn-sm w-full bg-green-600 hover:bg-green-700 text-white flex justify-center gap-1.5 mb-2">
               <Send size={14} /> Enviar por WhatsApp
             </button>
