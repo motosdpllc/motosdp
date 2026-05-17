@@ -2,37 +2,16 @@ import { NextResponse } from 'next/server'
 
 export async function POST(request: Request) {
   try {
-    const { url } = await request.json()
+    const { textoPublicacion } = await request.json()
 
-    if (!url) {
-      return NextResponse.json({ error: 'No se recibió la URL para analizar' }, { status: 400 })
+    if (!textoPublicacion) {
+      return NextResponse.json({ error: 'No se recibió texto para analizar' }, { status: 400 })
     }
 
     const googleApiKey = process.env.GOOGLE_API_KEY
     if (!googleApiKey) {
       return NextResponse.json({ error: 'Falta configurar la GOOGLE_API_KEY en Vercel' }, { status: 500 })
     }
-
-    // 1. Descargar el HTML de la publicación de eBay
-    const ebayRes = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      }
-    })
-
-    if (!ebayRes.ok) {
-      return NextResponse.json({ error: 'No se pudo obtener la información de la página de eBay' }, { status: 500 })
-    }
-
-    const html = await ebayRes.text()
-
-    // 2. Limpiar el HTML para extraer texto plano limpio (así no desperdiciamos tokens)
-    const textoPublicacion = html
-      .replace(/<script[^>]*>([\s\S]*?)<\/script>/gi, '')
-      .replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, '')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
 
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${googleApiKey}`
 
