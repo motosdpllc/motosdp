@@ -121,7 +121,6 @@ export default function CotizacionesPage() {
   const ejecutarEnvioWhatsApp = (cotData: any) => {
     const cl = clientes.find(c => c.id === cotData.cliente_id)
     const telefono = cl?.telefono ? cl.telefono.replace(/[^0-9]/g, '') : ''
-    // Abrimos el chat directo con el cliente sin pasarle la variable text, asegurando chat limpio
     window.open(`https://wa.me/${telefono}`, '_blank')
   }
 
@@ -130,7 +129,6 @@ export default function CotizacionesPage() {
     if (!cotItems[0].descripcion) { toast.error('Agregá al menos un ítem'); return }
     
     if (tipoEnvio === 'programar') {
-      // Seteamos valores por defecto para el selector
       setFechaEnvio(new Date().toISOString().split('T')[0])
       setHoraEnvio('10:00')
       setShowModalProgramar(true)
@@ -171,7 +169,7 @@ export default function CotizacionesPage() {
     loadAll()
     
     if (tipoEnvio === 'enviar_ya') {
-      <button onClick={() => { setFechaEnvio(new Date().toISOString().split('T')[0]); setHoraEnvio('10:00'); setShowModalProgramar(true) }} className="btn btn-sm w-full bg-amber-500 hover:bg-amber-600 text-white flex justify-center gap-1.5">
+      ejecutarEnvioWhatsApp(payload)
     }
     
     setVista('lista')
@@ -182,7 +180,6 @@ export default function CotizacionesPage() {
       toast.error('Por favor selecciona fecha y hora')
       return
     }
-    // Mostramos la confirmación en pantalla del recordatorio agendado
     toast.success(`📅 Envío agendado para el ${fmtDate(fechaEnvio)} a las ${horaEnvio} hs`)
     setShowModalProgramar(false)
     procesarGuardar('solo_guardar')
