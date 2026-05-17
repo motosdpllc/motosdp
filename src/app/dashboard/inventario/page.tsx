@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react'
 import { supabase, fmt, fmtDate, ubicColor, type Item } from '@/lib/supabase'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import toast from 'react-hot-toast'
 
 const UBICACIONES = ['Proveedor','En tránsito','En tránsito a Daniel','Daniel','Pablo','Blue Mail','Tato','Tránsito a Bs As','En Mano','Vendido','Cancelado']
 const DESTINOS = ['Argentina','Stock EEUU','Uso propio','Stock Argentina','Stock Internacional']
@@ -46,6 +47,26 @@ function InventarioTable() {
   }, [search, ubic, dest, pub])
 
   useEffect(() => { load() }, [load])
+
+  const eliminarProducto = async (id: string) => {
+    const confirmar = window.confirm('¿Seguro que querés eliminar este producto? Esta acción no se puede deshacer.')
+    if (!confirmar) return
+
+    try {
+      const { error } = await supabase
+        .from('items')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+
+      toast.success('Producto eliminado')
+      load() 
+    } catch (error) {
+      console.error(error)
+      toast.error('No se pudo eliminar')
+    }
+  }
 
   const openTrackCompra = (id: string) => {
     const item = items.find(x => x.id === id)
@@ -171,7 +192,8 @@ function InventarioTable() {
                     <td className="table-cell text-xs max-w-24 truncate">{x.cliente_nombre || '—'}</td>
                     <td className="table-cell">
                       <div className="flex gap-1">
-                        <Link href={`/dashboard/nuevo?edit=${x.id}`} className="btn btn-sm text-xs">✏️</Link>
+                        <Link href={`/dashboard/nuevo?edit=${x.id}`} className="btn btn-sm text-xs" title="Editar">✏️</Link>
+                        <button onClick={() => eliminarProducto(x.id)} className="btn btn-sm bg-red-50 text-red-600 border-red-200 hover:bg-red-100 text-xs" title="Eliminar">🗑️</button>
                       </div>
                     </td>
                   </tr>
