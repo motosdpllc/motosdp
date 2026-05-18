@@ -8,7 +8,7 @@ const SUPABASE_KEY = "sb_publishable_bwgUFkARnaYYNr7BCWCUrA_pDISUvyN";
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const EVOLUTION_URL = "https://evolution-api-production-bd10.up.railway.app";
-const INSTANCE_NAME = "Sistema"; 
+const INSTANCE_NAME = "motosdp"; 
 const API_TOKEN = "77A83FC238FE-4CC1-A077-E997C709DBC0";         
 
 export async function GET() {
