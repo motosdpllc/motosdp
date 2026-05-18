@@ -10,8 +10,8 @@ const supabase = createClient(
 // 🛠️ CONFIGURACIÓN DE TU EVOLUTION API (RAILWAY)
 // Reemplazá los textos de las líneas 13 y 14 con tus datos reales de Railway
 const EVOLUTION_URL = "https://evolution-api-production-bd10.up.railway.app";
-const INSTANCE_NAME = "TU_INSTANCIA_ACA"; 
-const API_TOKEN = "TU_TOKEN_ACA";         
+const INSTANCE_NAME = "motosdp"; 
+const API_TOKEN = "77A83FC238FE-4CC1-A077-E997C709DBC0";         
 
 export async function GET() {
   try {
