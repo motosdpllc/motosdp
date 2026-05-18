@@ -45,7 +45,7 @@ export async function GET() {
       
       const textoMensaje = `Hola ${cotizacion.nombre_cliente}, te adjunto la cotización ${cotizacion.numero_cotizacion}.`;
 
-      const response = await fetch(`https://tu-servidor-manager.com/message/sendText/${instance}`, {
+      const response = await fetch(`https://evolution-api-production-bd10.up.railway.app/message/sendText/${instance}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
