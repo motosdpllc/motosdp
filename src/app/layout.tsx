@@ -3,8 +3,11 @@ import './globals.css'
 import { Toaster } from 'react-hot-toast'
 
 export const metadata: Metadata = {
-  title: 'Motos DP LLC — Sistema de Gestión',
-  description: 'Sistema de gestión de repuestos de motos',
+  title: 'Sistema - Motos DP LLC',
+  description: 'Gestión de repuestos de motos',
+icons: {
+    icon: '/favicon.ico',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
