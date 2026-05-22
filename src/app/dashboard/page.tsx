@@ -35,7 +35,6 @@ export default function DashboardPage() {
       setAlertas(alertasActivas)
       setHuerfanos(hurf)
 
-      // Filtrado por Lógica Nueva de Destino y Ubicación
       const itemsVendidos = items.filter(x => x.destino === 'Venta')
       const itemsEnStock = items.filter(x => x.destino === 'Stock')
 
@@ -43,12 +42,11 @@ export default function DashboardPage() {
         invertido: items.reduce((a, x) => a + (x.costo_total || 0), 0),
         vendido: itemsVendidos.reduce((a, x) => a + (x.precio_venta || 0), 0),
         ganancia: itemsVendidos.reduce((a, x) => a + (x.ganancia || 0), 0),
-        transito: items.filter(x => x.tracking_compra && !x.ubicacion).length, // Ítems comprados sin destino físico aún
+        transito: items.filter(x => x.tracking_compra && !x.ubicacion).length,
         items: items.length,
         clientes: cliRes.data?.length || 0,
       })
 
-      // Mapeo de Ubicaciones Reales (EEUU, Argentina, España)
       const ubMap: Record<string, number> = {}
       items.forEach(x => { 
         if (x.ubicacion) {
@@ -119,28 +117,28 @@ export default function DashboardPage() {
       {(alertas.length > 0 || huerfanos.length > 0) && (
         <div className="mb-6 space-y-2">
           {huerfanos.length > 0 && (
-            <div className="alert-banner bg-orange-50 border-orange-200">
+            <div className="alert-banner bg-orange-50 border-orange-200 p-4 rounded-xl flex gap-3 items-start border">
               <AlertTriangle className="text-orange-500 mt-0.5 flex-shrink-0" size={18} />
               <div className="flex-1">
                 <div className="font-semibold text-orange-800">{huerfanos.length} tracking{huerfanos.length > 1 ? 's' : ''} sin asignar</div>
                 <div className="text-orange-600 text-xs mt-0.5">{huerfanos.map(h => h.tracking).join(', ')}</div>
               </div>
-              <Link href="/dashboard/config" className="btn btn-sm border-orange-300 text-orange-700 hover:bg-orange-100">Ver y asignar</Link>
+              <Link href="/dashboard/config" className="btn btn-sm border-orange-300 text-orange-700 hover:bg-orange-100 text-xs px-2 py-1 border rounded">Ver y asignar</Link>
             </div>
           )}
           {alertas.map(a => (
-            <div key={a.id} className="alert-banner bg-red-50 border-red-200">
+            <div key={a.id} className="alert-banner bg-red-50 border-red-200 p-4 rounded-xl flex gap-3 items-start border">
               <Bell className="text-red-500 mt-0.5 flex-shrink-0" size={18} />
               <div className="flex-1">
                 <div className="font-semibold text-red-800">{a.mensaje}</div>
                 <div className="text-red-500 text-xs mt-0.5">Recordar en:</div>
                 <div className="flex gap-1 mt-1 flex-wrap">
                   {[15, 30, 60, 180, 1440].map(m => (
-                    <button key={m} onClick={() => snoozeAlerta(a.id, m)} className="btn btn-sm border-red-200 text-red-600 hover:bg-red-100 text-xs py-0.5">
+                    <button key={m} onClick={() => snoozeAlerta(a.id, m)} className="border border-red-200 text-red-600 hover:bg-red-100 text-xs py-0.5 px-2 rounded">
                       {m < 60 ? m + 'min' : m === 60 ? '1h' : m === 180 ? '3h' : 'Mañana'}
                     </button>
                   ))}
-                  <button onClick={() => completarAlerta(a.id)} className="btn btn-sm border-green-200 text-green-700 hover:bg-green-50 text-xs py-0.5">✓ Listo</button>
+                  <button onClick={() => completarAlerta(a.id)} className="border border-green-200 text-green-700 hover:bg-green-50 text-xs py-0.5 px-2 rounded font-medium">✓ Listo</button>
                 </div>
               </div>
             </div>
@@ -151,14 +149,14 @@ export default function DashboardPage() {
       {/* BLOQUES DE ESTADÍSTICAS */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
         {[
-          { label: 'Invertido Total', value: fmt(stats.invertido), color: 'text-gray-900', icon: Package },
-          { label: 'Vendido Total', value: fmt(stats.vendido), color: 'text-gray-900', icon: ShoppingCart },
-          { label: 'Ganancia real', value: fmt(stats.ganancia), color: stats.ganancia >= 0 ? 'text-green-600' : 'text-red-600', icon: TrendingUp },
-          { label: 'Por recibir (ETA)', value: stats.transito.toString(), color: 'text-amber-600', icon: Package },
-          { label: 'Items en Base', value: stats.items.toString(), color: 'text-gray-900', icon: Package },
-          { label: 'Fidelizados', value: stats.clientes.toString(), color: 'text-blue-600', icon: Package },
+          { label: 'Invertido Total', value: fmt(stats.invertido), color: 'text-gray-900' },
+          { label: 'Vendido Total', value: fmt(stats.vendido), color: 'text-gray-900' },
+          { label: 'Ganancia real', value: fmt(stats.ganancia), color: stats.ganancia >= 0 ? 'text-green-600' : 'text-red-600' },
+          { label: 'Por recibir (ETA)', value: stats.transito.toString(), color: 'text-amber-600' },
+          { label: 'Items en Base', value: stats.items.toString(), color: 'text-gray-900' },
+          { label: 'Fidelizados', value: stats.clientes.toString(), color: 'text-blue-600' },
         ].map(s => (
-          <div key={s.label} className="card">
+          <div key={s.label} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
             <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">{s.label}</div>
             <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
           </div>
@@ -166,7 +164,7 @@ export default function DashboardPage() {
       </div>
 
       {/* UBICACIONES REALES DE STOCK */}
-      <div className="card mb-6">
+      <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm mb-6">
         <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Distribución Física de Stock</div>
         <div className="flex flex-wrap gap-2">
           {Object.entries(ubicaciones).map(([u, c]) => (
@@ -177,3 +175,53 @@ export default function DashboardPage() {
               <span className="font-semibold">{c}</span>
             </Link>
           ))}
+        </div>
+      </div>
+
+      {/* SECCIÓN INFERIOR DE SEGUIMIENTO */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Próximos Arribos */}
+        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+            <Package size={16} className="text-amber-500" /> Próximos Arribos (ETA)
+          </h3>
+          <div className="space-y-2">
+            {etaProximos.length === 0 ? (
+              <p className="text-xs text-gray-400 py-2">No hay arribos estimados en los próximos 14 días.</p>
+            ) : (
+              etaProximos.map(item => (
+                <div key={item.id} className="flex justify-between items-center text-sm p-2 bg-gray-50 rounded-lg">
+                  <span className="truncate max-w-[250px] font-medium text-gray-800">{item.repuesto || item.descripcion || 'Sin descripción'}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded font-medium ${item.days < 0 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                    {item.days === 0 ? 'Llega hoy' : item.days < 0 ? `Demorado ${Math.abs(item.days)}d` : `En ${item.days} días`}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Cuentas Pendientes de Pago/Cobro */}
+        <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+            <ShoppingCart size={16} className="text-red-500" /> Saldos Pendientes
+          </h3>
+          <div className="space-y-2">
+            {pendientesCobro.length === 0 ? (
+              <p className="text-xs text-gray-400 py-2">Al día. No hay saldos pendientes.</p>
+            ) : (
+              pendientesCobro.map(item => (
+                <div key={item.id} className="flex justify-between items-center text-sm p-2 bg-gray-50 rounded-lg">
+                  <span className="truncate max-w-[250px] text-gray-800">{item.repuesto || item.descripcion}</span>
+                  <span className={`text-xs font-bold ${item.estado_pago === 'Debe' ? 'text-red-600' : 'text-orange-600'}`}>
+                    {item.estado_pago === 'Debe' ? 'Cliente Debe' : 'Debemos'}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
