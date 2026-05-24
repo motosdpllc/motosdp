@@ -103,11 +103,11 @@ export default function CotizacionesPage() {
   }
 
   const obtenerCostoConRecargo = (item: any) => {
-    let costoBase = 0
-    if (item.proveedor_elegido === 'basoli') costoBase = parseFloat(item.basoli) || 0
-    if (item.proveedor_elegido === 'partzilla') costoBase = parseFloat(item.partzilla) || 0
-    if (item.proveedor_elegido === 'otra') costoBase = parseFloat(item.otra) || 0
-    return parseFloat((costoBase * MULTIPLICADOR).toFixed(2))
+    let original = 0
+    if (item.proveedor_elegido === 'basoli') original = parseFloat(item.basoli) || 0
+    if (item.proveedor_elegido === 'partzilla') original = parseFloat(item.partzilla) || 0
+    if (item.proveedor_elegido === 'otra') original = parseFloat(item.otra) || 0
+    return parseFloat((original * MULTIPLICADOR).toFixed(2))
   }
 
   const nuevaCot = async () => {
@@ -159,6 +159,8 @@ export default function CotizacionesPage() {
     setVista('lista')
   }
 
+  const clisFiltrados = cliSearch.trim() === '' ? [] : clientes.filter(c => c.nombre.toLowerCase().includes(cliSearch.toLowerCase())).slice(0, 5)
+
   const itemsActivos = cotItems.filter(i => (i.codigo.trim() !== '' || i.descripcion.trim() !== '') && i.cantidad > 0)
   const itemsPendientes = cotItems.filter(i => (i.codigo.trim() !== '' || i.descripcion.trim() !== '') && i.cantidad === 0)
 
@@ -209,11 +211,11 @@ export default function CotizacionesPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-          {/* Formulario y Matriz Principal */}
           <div className={`${itemActivoIndex !== null ? 'lg:col-span-3' : 'lg:col-span-4'} space-y-6 transition-all`}>
             <form onSubmit={guardar} className="space-y-6 bg-white p-6 rounded-xl shadow">
-              {/* Encabezado */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-lg">
+              
+              {/* Encabezado con el Buscador de Cliente reincorporado */}
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 bg-gray-50 p-4 rounded-lg">
                 <div>
                   <label className="block text-xs font-bold text-gray-600">Número</label>
                   <input type="text" value={f.nro} readOnly className="w-full mt-1 p-2 bg-gray-200 border rounded" />
@@ -221,6 +223,31 @@ export default function CotizacionesPage() {
                 <div>
                   <label className="block text-xs font-bold text-gray-600">Fecha</label>
                   <input type="date" value={f.fecha} onChange={e => setF({...f, fecha: e.target.value})} className="w-full mt-1 p-2 border rounded" required />
+                </div>
+                {/* BUSCADOR DE CLIENTE INTEGRADO */}
+                <div className="relative">
+                  <label className="block text-xs font-bold text-gray-600">Cliente</label>
+                  <input 
+                    type="text" 
+                    value={cliSearch} 
+                    onChange={e => { setCliSearch(e.target.value); setF({...f, cliente_nombre: e.target.value, cliente_id: ''}); }} 
+                    placeholder="Buscar cliente..." 
+                    className="w-full mt-1 p-2 border rounded font-medium"
+                    required
+                  />
+                  {clisFiltrados.length > 0 && (
+                    <div className="absolute left-0 right-0 bg-white border rounded shadow-lg mt-1 z-50 text-xs max-h-40 overflow-y-auto">
+                      {clisFiltrados.map(c => (
+                        <div 
+                          key={c.id} 
+                          onClick={() => { setF({...f, cliente_id: c.id, cliente_nombre: c.nombre}); setCliSearch(c.nombre); }}
+                          className="p-2 hover:bg-blue-50 cursor-pointer font-medium border-b last:border-0"
+                        >
+                          {c.nombre}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-gray-600">Destino</label>
@@ -293,7 +320,6 @@ export default function CotizacionesPage() {
                               onChange={e => actualizarCeldaItem(index, 'otra', e.target.value)} 
                               onClick={() => setItemActivoIndex(index)}
                               className="w-full p-1 text-center border rounded bg-purple-50 hover:bg-purple-100 cursor-pointer font-medium text-purple-800" 
-                              title="Click para ver/editar el proveedor externo"
                             />
                           </td>
                           <td className="p-1">
@@ -397,7 +423,7 @@ export default function CotizacionesPage() {
             </div>
           </div>
 
-          {/* PANEL LATERAL DINÁMICO (Aparece al tocar una fila) */}
+          {/* PANEL LATERAL DINÁMICO */}
           {itemActivoIndex !== null && (
             <div className="bg-white p-4 rounded-xl shadow border border-gray-200 space-y-4 lg:col-span-1 sticky top-6">
               <div className="flex justify-between items-center border-b pb-2">
@@ -411,7 +437,6 @@ export default function CotizacionesPage() {
                 <p className="text-xs text-gray-500 italic mt-0.5">{cotItems[itemActivoIndex]?.descripcion || 'Sin descripción'}</p>
               </div>
 
-              {/* Ajuste manual de peso para el cálculo final */}
               <div className="bg-gray-50 p-2.5 rounded border">
                 <label className="block text-xs font-bold text-gray-700">Peso del Artículo (kg)</label>
                 <input 
@@ -422,10 +447,8 @@ export default function CotizacionesPage() {
                 />
               </div>
 
-              {/* Ajustes específicos de Proveedor Externo */}
               <div className="bg-purple-50/50 p-3 rounded-lg border border-purple-100 space-y-3">
                 <h4 className="text-xs font-bold text-purple-900 uppercase tracking-wider">Identificación de Proveedor</h4>
-                
                 <div>
                   <label className="block text-[11px] font-medium text-purple-700">¿Qué Proveedor es? (Ej: CMSNL, Ebay)</label>
                   <input 
@@ -436,7 +459,6 @@ export default function CotizacionesPage() {
                     className="w-full mt-1 p-1.5 border rounded text-xs bg-white uppercase font-semibold"
                   />
                 </div>
-
                 <div>
                   <label className="block text-[11px] font-medium text-purple-700">Link Web de Referencia</label>
                   <input 
