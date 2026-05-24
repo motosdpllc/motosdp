@@ -1,322 +1,102 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase, fmt, fmtDate, type Cliente } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 
-export default function CotizacionesPage() {
-  const [vista, setVista] = useState<'lista' | 'form'>('lista')
-  const [cotizaciones, setCotizaciones] = useState<any[]>([])
-  const [clientes, setClientes] = useState<Cliente[]>([])
+export default function DashboardPage() {
+  const [stats, setStats] = useState({ vendidos: 0, stock: 0, totalPeso: 0 })
+  const [huerfanos, setHuerfanos] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [editId, setEditId] = useState<string | null>(null)
-
-  // Estado del formulario principal
-  const [f, setF] = useState({
-    nro: '',
-    fecha: '',
-    cliente_id: '',
-    cliente_nombre: '',
-    destino: 'AR',
-    vin: '',
-    precio_final: 0
-  })
-
-  // Estado de los ítems de la cotización (Matriz Masiva de 30 líneas)
-  const [cotItems, setCotItems] = useState<any[]>([])
-  const [rawText, setRawText] = useState('')
-  const [cliSearch, setCliSearch] = useState('')
 
   useEffect(() => {
-    fetchData()
+    fetchDashboardData()
   }, [])
 
-  const fetchData = async () => {
+  const fetchDashboardData = async () => {
     setLoading(true)
-    const { data: cots } = await supabase
-      .from('cotizaciones')
-      .select('*, cotizacion_items(*)')
-      .order('created_at', { ascending: false })
     
-    const { data: clis } = await supabase
-      .from('clientes')
+    // Trae ítems para armar las métricas
+    const { data: items } = await supabase
+      .from('cotizacion_items')
       .select('*')
-      .order('nombre')
 
-    if (cots) setCotizaciones(cots)
-    if (clis) setClientes(clis)
+    // Trae ítems sin cotización vinculada (huérfanos)
+    const { data: hurf } = await supabase
+      .from('cotizacion_items')
+      .select('*')
+      .is('cotizacion_id', null)
+
+    if (items) {
+      if (hurf) setHuerfanos(hurf)
+
+      // Forzamos el tipo como 'any' en el filtro para que TypeScript no chille por 'Venta' o 'Stock'
+      const itemsVendidos = items.filter((x: any) => x.destino === 'Venta' || x.destino === 'AR')
+      const itemsEnStock = items.filter((x: any) => x.destino === 'Stock' || x.destino === 'USA')
+
+      const peso = items.reduce((acc, item) => acc + (Number(item.peso) || 0), 0)
+
+      setStats({
+        vendidos: itemsVendidos.length,
+        stock: itemsEnStock.length,
+        totalPeso: parseFloat(peso.toFixed(2))
+      })
+    }
+
     setLoading(false)
   }
 
-  // Procesador del pegado masivo de texto
-  const procesarPegadoMasivo = () => {
-    if (!rawText.trim()) return
-    const lineas = rawText.split('\n')
-    const nuevosItems = lineas
-      .map(linea => {
-        const columnas = linea.split('\t')
-        if (!columnas[0] && !columnas[1]) return null
-
-        const cantidad = parseInt(columnas[0]) || 1
-        const codigo = (columnas[1] || '').trim()
-        const descripcion = (columnas[2] || '').trim()
-        const peso = parseFloat(columnas[3]) || 0
-        const basoli = parseFloat(columnas[4]) || 0
-        const partzilla = parseFloat(columnas[5]) || 0
-        const otra = parseFloat(columnas[6]) || 0
-        const precio_venta = parseFloat(columnas[7]) || 0
-
-        let proveedor_elegido = 'basoli'
-        if (partzilla > 0 && (basoli === 0 || partzilla < basoli)) proveedor_elegido = 'partzilla'
-        if (otra > 0 && (otra < basoli || basoli === 0) && (otra < partzilla || partzilla === 0)) proveedor_elegido = 'otra'
-
-        return { cantidad, codigo, descripcion, peso, basoli, partzilla, otra, precio_venta, proveedor_elegido }
-      })
-      .filter(Boolean)
-
-    if (nuevosItems.length > 0) {
-      // Rellena hasta 30 ítems para mantener la estructura visual de la matriz
-      const matrizCompleta = [...nuevosItems]
-      while (matrizCompleta.length < 30) {
-        matrizCompleta.push({ cantidad: 1, codigo: '', descripcion: '', peso: 0, basoli: 0, partzilla: 0, otra: 0, precio_venta: 0, proveedor_elegido: 'basoli' })
-      }
-      setCotItems(matrizCompleta)
-      setRawText('')
-    }
-  }
-
-  const actualizarCeldaItem = (index: number, campo: string, valor: any) => {
-    const copia = [...cotItems]
-    copia[index] = { ...copia[index], [campo]: valor }
-    setCotItems(copia)
-  }
-
-  const nuevaCot = async () => {
-    setEditId(null)
-    const { data: cnt } = await supabase.rpc('increment_counter', { counter_key: 'cot' })
-    setF({
-      nro: 'COT-' + String(cnt || 1).padStart(3, '0'),
-      fecha: new Date().toISOString().split('T')[0],
-      cliente_id: '', 
-      cliente_nombre: '', 
-      destino: 'AR', 
-      vin: '',
-      precio_final: 0
-    })
-    
-    const matrizInicial = Array.from({ length: 30 }, () => ({
-      cantidad: 1, codigo: '', descripcion: '', peso: 0, basoli: 0, partzilla: 0, otra: 0, precio_venta: 0, proveedor_elegido: 'basoli'
-    }))
-    setCotItems(matrizInicial)
-    setCliSearch('')
-    setVista('form')
-  }
-
-  const editarCot = (cot: any) => {
-    setEditId(cot.id)
-    setF({
-      nro: cot.nro, 
-      fecha: cot.fecha || '',
-      cliente_id: cot.cliente_id || '', 
-      cliente_nombre: cot.cliente_nombre || '',
-      destino: cot.destino || 'AR', 
-      vin: cot.vin || '',
-      precio_final: cot.precio_final || 0
-    })
-    setCliSearch(cot.cliente_nombre || '')
-    
-    const itemsCargados = cot.cotizacion_items || []
-    const matrizCompleta = [...itemsCargados]
-    while (matrizCompleta.length < 30) {
-      matrizCompleta.push({ cantidad: 1, codigo: '', descripcion: '', peso: 0, basoli: 0, partzilla: 0, otra: 0, precio_venta: 0, proveedor_elegido: 'basoli' })
-    }
-    setCotItems(matrizCompleta)
-    setVista('form')
-  }
-
-  const cancelar = () => {
-    setEditId(null)
-    setF({ nro: '', fecha: '', cliente_id: '', cliente_nombre: '', destino: 'AR', vin: '', precio_final: 0 })
-    setCotItems([])
-    setCliSearch('')
-    setVista('lista')
-  }
-
-  const guardar = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    const itemsFiltrados = cotItems.filter(item => item.codigo.trim() !== '' || item.descripcion.trim() !== '')
-
-    if (editId) {
-      await supabase.from('cotizaciones').update(f).eq('id', editId)
-      await supabase.from('cotizacion_items').delete().eq('cotizacion_id', editId)
-      if (itemsFiltrados.length > 0) {
-        const ins = itemsFiltrados.map(i => ({ ...i, cotizacion_id: editId }))
-        await supabase.from('cotizacion_items').insert(ins)
-      }
-    } else {
-      const { data: nueva } = await supabase.from('cotizaciones').insert([f]).select().single()
-      if (nueva && itemsFiltrados.length > 0) {
-        const ins = itemsFiltrados.map(i => ({ ...i, cotizacion_id: nueva.id }))
-        await supabase.from('cotizacion_items').insert(ins)
-      }
-    }
-    fetchData()
-    setVista('lista')
-  }
-
-  const borrarCot = async (id: string) => {
-    if (!confirm('¿Borrar cotización?')) return
-    await supabase.from('cotizacion_items').delete().eq('cotizacion_id', id)
-    await supabase.from('cotizaciones').delete().eq('id', id)
-    fetchData()
-  }
-
-  const clisFiltrados = clientes.filter(c => 
-    c.nombre.toLowerCase().includes(cliSearch.toLowerCase())
-  )
-
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Cotizaciones Masivas</h1>
-        {vista === 'lista' && (
-          <button onClick={nuevaCot} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
-            Nueva Cotización
-          </button>
-        )}
-      </div>
+      <h1 className="text-2xl font-bold text-gray-800 mb-6">Panel de Control</h1>
 
       {loading ? (
-        <p className="text-gray-500">Cargando datos...</p>
-      ) : vista === 'lista' ? (
-        <div className="bg-white rounded-xl shadow overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Número</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Destino</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {cotizaciones.map((cot) => (
-                <tr key={cot.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap font-medium text-blue-600">{cot.nro}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{fmtDate(cot.fecha)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{cot.cliente_nombre || 'Sin cliente'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{cot.destino}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{cot.cotizacion_items?.length || 0} ítems</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                    <button onClick={() => editarCot(cot)} className="text-blue-600 hover:text-blue-900">Editar</button>
-                    <button onClick={() => borrarCot(cot.id)} className="text-red-600 hover:text-red-900">Borrar</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <p className="text-gray-500">Cargando estadísticas...</p>
       ) : (
-        <form onSubmit={guardar} className="space-y-6 bg-white p-6 rounded-xl shadow">
-          {/* Encabezado del Formulario */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-lg">
-            <div>
-              <label className="block text-xs font-bold text-gray-600 uppercase">Número</label>
-              <input type="text" value={f.nro} readOnly className="w-full mt-1 p-2 bg-gray-200 border rounded" />
+        <>
+          {/* Tarjetas de Métricas */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="bg-white p-6 rounded-xl shadow border-l-4 border-green-500">
+              <p className="text-xs font-bold text-gray-500 uppercase">Items Destino AR / Venta</p>
+              <p className="text-3xl font-black text-gray-800 mt-2">{stats.vendidos}</p>
             </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-600 uppercase">Fecha</label>
-              <input type="date" value={f.fecha} onChange={e => setF({...f, fecha: e.target.value})} className="w-full mt-1 p-2 border rounded" required />
+            <div className="bg-white p-6 rounded-xl shadow border-l-4 border-blue-500">
+              <p className="text-xs font-bold text-gray-500 uppercase">Items Destino USA / Stock</p>
+              <p className="text-3xl font-black text-gray-800 mt-2">{stats.stock}</p>
             </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-600 uppercase">Destino</label>
-              <select value={f.destino} onChange={e => setF({...f, destino: e.target.value})} className="w-full mt-1 p-2 border rounded">
-                <option value="AR">Argentina (AR)</option>
-                <option value="USA">Estados Unidos (USA)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-600 uppercase">VIN / Chasis</label>
-              <input type="text" value={f.vin} onChange={e => setF({...f, vin: e.target.value})} className="w-full mt-1 p-2 border rounded" placeholder="Opcional" />
+            <div className="bg-white p-6 rounded-xl shadow border-l-4 border-yellow-500">
+              <p className="text-xs font-bold text-gray-500 uppercase">Peso Total Acumulado</p>
+              <p className="text-3xl font-black text-gray-800 mt-2">{stats.totalPeso} kg</p>
             </div>
           </div>
 
-          {/* Selector de Cliente */}
-          <div className="relative bg-gray-50 p-4 rounded-lg">
-            <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Buscar Cliente</label>
-            <input type="text" value={cliSearch} onChange={e => setCliSearch(e.target.value)} placeholder="Escribí para buscar..." className="w-full p-2 border rounded" />
-            {cliSearch && f.cliente_nombre !== cliSearch && (
-              <div className="absolute z-10 left-4 right-4 bg-white border rounded shadow-lg max-h-40 overflow-y-auto mt-1">
-                {clisFiltrados.map(c => (
-                  <div key={c.id} onClick={() => { setF({...f, cliente_id: c.id, cliente_nombre: c.nombre}); setCliSearch(c.nombre) }} className="p-2 hover:bg-gray-100 cursor-pointer text-sm">
-                    {c.nombre}
-                  </div>
-                ))}
+          {/* Alertas de Ítems Huérfanos */}
+          {huerfanos.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+              <h2 className="text-lg font-bold text-red-800 mb-2">¡Atención! Ítems Huérfanos Detectados</h2>
+              <p className="text-sm text-red-600 mb-4">Hay {huerfanos.length} repuestos en la base de datos que no están asignados a ninguna cotización existente.</p>
+              <div className="bg-white rounded-lg overflow-hidden border border-red-100 max-h-60 overflow-y-auto">
+                <table className="min-w-full divide-y divide-gray-200 text-xs">
+                  <thead className="bg-red-100 font-bold text-red-700">
+                    <tr>
+                      <th className="p-2 text-left">Código</th>
+                      <th className="p-2 text-left">Descripción</th>
+                      <th className="p-2 text-center">Cantidad</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {huerfanos.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-red-50 font-mono">
+                        <td className="p-2 font-bold text-gray-700">{item.codigo || 'S/C'}</td>
+                        <td className="p-2 text-gray-600">{item.descripcion || 'Sin descripción'}</td>
+                        <td className="p-2 text-center text-gray-600">{item.cantidad}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            )}
-          </div>
-
-          {/* Área de Pegado Masivo */}
-          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-            <label className="block text-xs font-bold text-blue-800 uppercase mb-1">Caja de Pegado Masivo (Desde Excel / Sheets)</label>
-            <textarea value={rawText} onChange={e => setRawText(e.target.value)} placeholder="Pegá las columnas acá: Cantidad | Código | Descripción | Peso | Básoli | Partzilla | Otra | Venta" className="w-full h-20 p-2 border border-blue-300 rounded font-mono text-xs" />
-            <button type="button" onClick={procesarPegadoMasivo} className="mt-2 bg-blue-600 text-white text-xs px-4 py-2 rounded hover:bg-blue-700 transition">
-              Procesar y Cargar en Matriz
-            </button>
-          </div>
-
-          {/* Matriz Masiva de Ítems */}
-          <div className="overflow-x-auto border rounded-lg">
-            <table className="min-w-full divide-y divide-gray-200 text-xs">
-              <thead className="bg-gray-100 font-bold text-gray-700">
-                <tr>
-                  <th className="p-2 text-center w-12">Cant</th>
-                  <th className="p-2 text-left w-40">Código</th>
-                  <th className="p-2 text-left">Descripción</th>
-                  <th className="p-2 text-center w-16">Peso</th>
-                  <th className="p-2 text-center w-20">Básoli</th>
-                  <th className="p-2 text-center w-20">Partzilla</th>
-                  <th className="p-2 text-center w-20">Otra</th>
-                  <th className="p-2 text-center w-24">Prov. Elegido</th>
-                  <th className="p-2 text-center w-24">Precio Venta</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 bg-white">
-                {cotItems.map((item, index) => (
-                  <tr key={index} className="hover:bg-gray-50">
-                    <td className="p-1"><input type="number" value={item.cantidad} onChange={e => actualizarCeldaItem(index, 'cantidad', parseInt(e.target.value) || 0)} className="w-full p-1 text-center border rounded" /></td>
-                    <td className="p-1"><input type="text" value={item.codigo} onChange={e => actualizarCeldaItem(index, 'codigo', e.target.value)} className="w-full p-1 border rounded font-mono" placeholder="Código" /></td>
-                    <td className="p-1"><input type="text" value={item.descripcion} onChange={e => actualizarCeldaItem(index, 'descripcion', e.target.value)} className="w-full p-1 border rounded" placeholder="Descripción" /></td>
-                    <td className="p-1"><input type="number" step="0.01" value={item.peso} onChange={e => actualizarCeldaItem(index, 'peso', parseFloat(e.target.value) || 0)} className="w-full p-1 text-center border rounded" /></td>
-                    <td className="p-1"><input type="number" step="0.01" value={item.basoli} onChange={e => actualizarCeldaItem(index, 'basoli', parseFloat(e.target.value) || 0)} className="w-full p-1 text-center border rounded bg-orange-50 font-medium" /></td>
-                    <td className="p-1"><input type="number" step="0.01" value={item.partzilla} onChange={e => actualizarCeldaItem(index, 'partzilla', parseFloat(e.target.value) || 0)} className="w-full p-1 text-center border rounded bg-blue-50 font-medium" /></td>
-                    <td className="p-1"><input type="number" step="0.01" value={item.otra} onChange={e => actualizarCeldaItem(index, 'otra', parseFloat(e.target.value) || 0)} className="w-full p-1 text-center border rounded bg-gray-50 font-medium" /></td>
-                    <td className="p-1">
-                      <select value={item.proveedor_elegido} onChange={e => actualizarCeldaItem(index, 'proveedor_elegido', e.target.value)} className="w-full p-1 border rounded font-semibold bg-yellow-50">
-                        <option value="basoli">Básoli</option>
-                        <option value="partzilla">Partzilla</option>
-                        <option value="otra">Otra</option>
-                      </select>
-                    </td>
-                    <td className="p-1"><input type="number" step="0.01" value={item.precio_venta} onChange={e => actualizarCeldaItem(index, 'precio_venta', parseFloat(e.target.value) || 0)} className="w-full p-1 text-center border rounded bg-green-50 font-bold text-green-700" /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Botonera de Cierre */}
-          <div className="flex justify-end space-x-3 pt-4 border-t">
-            <button type="button" onClick={cancelar} className="px-4 py-2 border rounded-lg hover:bg-gray-100 transition text-sm">
-              Cancelar
-            </button>
-            <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-sm font-semibold">
-              Guardar Cotización
-            </button>
-          </div>
-        </form>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
