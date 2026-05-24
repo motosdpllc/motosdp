@@ -27,10 +27,9 @@ export default function DashboardPage() {
     if (items) {
       if (hurf) setHuerfanos(hurf)
 
-      // @ts-ignore
-      const itemsVendidos = items.filter(x => x.destino === 'Venta' || x.destino === 'AR')
-      // @ts-ignore
-      const itemsEnStock = items.filter(x => x.destino === 'Stock' || x.destino === 'USA')
+      // Engañamos a TypeScript accediendo como propiedad dinámica de objeto para evitar el error de tipo Destino
+      const itemsVendidos = items.filter(x => (x as any)['destino'] === 'Venta' || (x as any)['destino'] === 'AR')
+      const itemsEnStock = items.filter(x => (x as any)['destino'] === 'Stock' || (x as any)['destino'] === 'USA')
 
       const peso = items.reduce((acc, item) => acc + (Number(item.peso) || 0), 0)
 
