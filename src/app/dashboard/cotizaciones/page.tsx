@@ -1,116 +1,109 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+
+const MULTIPLICADOR = 1.11
 
 export default function CotizacionesPage() {
   const [vista, setVista] = useState<'lista' | 'form'>('lista')
-  const [data, setData] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const [cotizaciones, setCotizaciones] = useState<any[]>([])
+  const [cotItems, setCotItems] = useState<any[]>([])
   const [editId, setEditId] = useState<string | null>(null)
-  
-  // Estado del formulario
-  const [form, setForm] = useState({ nro: '', fecha: '', cliente_nombre: '', vin: '' })
-  const [items, setItems] = useState<any[]>([])
+  const [f, setF] = useState({ nro: '', fecha: '', cliente_nombre: '', vin: '' })
+  const [rawText, setRawText] = useState('')
+  const [itemActivoIndex, setItemActivoIndex] = useState<number | null>(null)
+  const [imprConfig, setImprConfig] = useState({ cliente: true, basoli: true, partzilla: true, otras: true })
 
-  const fetchData = useCallback(async () => {
-    setLoading(true)
-    const { data: cots, error } = await supabase
-      .from('cotizaciones')
-      .select('*, cotizacion_items(*)')
-      .order('created_at', { ascending: false })
-    
-    if (error) console.error('Error:', error)
-    else setData(cots || [])
-    setLoading(false)
-  }, [])
+  useEffect(() => { fetchData() }, [])
 
-  useEffect(() => { fetchData() }, [fetchData])
-
-  const crearFilaVacia = () => ({
-    cantidad: 1, codigo: '', descripcion: '', peso: 0, 
-    basoli: 0, partzilla: 0, otra: 0, precio_venta: 0, proveedor_elegido: 'basoli'
-  })
-
-  const iniciarNueva = () => {
-    setForm({ nro: 'COT-' + Date.now().toString().slice(-4), fecha: new Date().toISOString().split('T')[0], cliente_nombre: '', vin: '' })
-    setItems(Array.from({ length: 30 }, crearFilaVacia))
-    setEditId(null)
-    setVista('form')
+  const fetchData = async () => {
+    const { data } = await supabase.from('cotizaciones').select('*, cotizacion_items(*)').order('created_at', { ascending: false })
+    if (data) setCotizaciones(data)
   }
 
-  const borrarCotizacion = async (id: string) => {
-    if (!confirm('¿Seguro?')) return
-    await supabase.from('cotizacion_items').delete().eq('cotizacion_id', id)
-    await supabase.from('cotizaciones').delete().eq('id', id)
-    fetchData()
+  const procesarPegadoMasivo = () => {
+    const filas = rawText.split('\n').map(linea => {
+      const col = linea.split('\t')
+      return {
+        cantidad: parseInt(col[0]) || 1,
+        codigo: col[1] || '',
+        descripcion: col[2] || '',
+        basoli: parseFloat(col[4]) || 0,
+        partzilla: parseFloat(col[5]) || 0,
+        otra: parseFloat(col[6]) || 0,
+        precio_venta: parseFloat(col[7]) || 0,
+        proveedor_elegido: 'basoli'
+      }
+    })
+    const vacias = Array.from({ length: Math.max(0, 30 - filas.length) }, () => ({
+      cantidad: 1, codigo: '', descripcion: '', basoli: 0, partzilla: 0, otra: 0, precio_venta: 0, proveedor_elegido: 'basoli'
+    }))
+    setCotItems([...filas, ...vacias])
   }
 
-  const guardarTodo = async () => {
+  const actualizarCelda = (idx: number, campo: string, valor: any) => {
+    const nuevo = [...cotItems]
+    nuevo[idx] = { ...nuevo[idx], [campo]: valor }
+    setCotItems(nuevo)
+  }
+
+  const guardar = async (e: React.FormEvent) => {
+    e.preventDefault()
     try {
-      const itemsFiltrados = items.filter(i => i.codigo || i.descripcion)
-      
       if (editId) {
-        await supabase.from('cotizaciones').update(form).eq('id', editId)
+        await supabase.from('cotizaciones').update(f).eq('id', editId)
         await supabase.from('cotizacion_items').delete().eq('cotizacion_id', editId)
-        await supabase.from('cotizacion_items').insert(itemsFiltrados.map(i => ({ ...i, cotizacion_id: editId })))
+        await supabase.from('cotizacion_items').insert(cotItems.filter(i => i.codigo).map(i => ({ ...i, cotizacion_id: editId })))
       } else {
-        const { data: nueva } = await supabase.from('cotizaciones').insert([form]).select().single()
-        await supabase.from('cotizacion_items').insert(itemsFiltrados.map(i => ({ ...i, cotizacion_id: nueva.id })))
+        const { data: nueva } = await supabase.from('cotizaciones').insert([f]).select().single()
+        if (nueva) await supabase.from('cotizacion_items').insert(cotItems.filter(i => i.codigo).map(i => ({ ...i, cotizacion_id: nueva.id })))
       }
       setVista('lista')
       fetchData()
-    } catch (e: any) {
-      alert('Error crítico: ' + e.message)
-    }
+    } catch (err: any) { alert("Error al guardar: " + err.message) }
   }
 
-  if (loading) return <div className="p-10 text-center">Cargando...</div>
-
   return (
-    <div className="p-6 max-w-7xl mx-auto bg-gray-50 min-h-screen">
+    <div className="p-6">
       {vista === 'lista' ? (
-        <>
-          <div className="flex justify-between mb-6">
-            <h1 className="text-2xl font-bold">Cotizaciones</h1>
-            <button onClick={iniciarNueva} className="bg-blue-600 text-white px-4 py-2 rounded">Nueva</button>
-          </div>
-          <div className="space-y-2">
-            {data.map(cot => (
-              <div key={cot.id} className="bg-white p-4 flex justify-between items-center shadow-sm border">
-                <div>{cot.nro} - {cot.cliente_nombre}</div>
-                <button onClick={() => borrarCotizacion(cot.id)} className="text-red-600">Borrar</button>
-              </div>
-            ))}
-          </div>
-        </>
+        <div className="space-y-4">
+          <button onClick={() => { setVista('form'); setCotItems(Array(30).fill({ cantidad: 1, codigo: '', descripcion: '', basoli: 0, partzilla: 0, otra: 0, precio_venta: 0, proveedor_elegido: 'basoli' })); setEditId(null); }} className="bg-blue-600 text-white px-4 py-2 rounded">Nueva Cotización</button>
+          {cotizaciones.map(c => (
+            <div key={c.id} className="p-4 border rounded shadow flex justify-between">
+              <span>{c.nro} - {c.cliente_nombre}</span>
+              <button onClick={async () => { await supabase.from('cotizacion_items').delete().eq('cotizacion_id', c.id); await supabase.from('cotizaciones').delete().eq('id', c.id); fetchData(); }} className="text-red-500 font-bold">Borrar</button>
+            </div>
+          ))}
+        </div>
       ) : (
-        <div className="bg-white p-6 shadow">
-          <h2 className="text-xl mb-4 font-bold">Editor de Cotización</h2>
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            <input placeholder="Nro" value={form.nro} onChange={e => setForm({...form, nro: e.target.value})} className="border p-2"/>
-            <input placeholder="Cliente" value={form.cliente_nombre} onChange={e => setForm({...form, cliente_nombre: e.target.value})} className="border p-2"/>
-            <input placeholder="VIN" value={form.vin} onChange={e => setForm({...form, vin: e.target.value})} className="border p-2"/>
+        <form onSubmit={guardar} className="space-y-4">
+          <div className="flex gap-4 p-4 bg-gray-100 rounded">
+            <input className="border p-2" placeholder="Cliente" onChange={e => setF({...f, cliente_nombre: e.target.value})} />
+            <textarea className="border p-2 w-full" placeholder="Pegar desde Excel" onChange={e => setRawText(e.target.value)} />
+            <button type="button" onClick={procesarPegadoMasivo} className="bg-gray-800 text-white p-2">Procesar</button>
           </div>
           
-          <table className="w-full border text-sm mb-6">
-            <thead className="bg-gray-100"><tr><th className="p-2">Cant</th><th className="p-2">Código</th><th className="p-2">Precio</th></tr></thead>
+          <table className="w-full text-sm border-collapse">
+            <thead><tr className="bg-gray-200"><th>Cant</th><th>Código</th><th>Venta</th><th>Costo</th><th>Acción</th></tr></thead>
             <tbody>
-              {items.map((item, idx) => (
-                <tr key={idx} className="border-b">
-                  <td className="p-1"><input type="number" value={item.cantidad} onChange={e => { const n = [...items]; n[idx].cantidad = e.target.value; setItems(n); }} className="w-full"/></td>
-                  <td className="p-1"><input value={item.codigo} onChange={e => { const n = [...items]; n[idx].codigo = e.target.value; setItems(n); }} className="w-full"/></td>
-                  <td className="p-1"><input type="number" value={item.precio_venta} onChange={e => { const n = [...items]; n[idx].precio_venta = e.target.value; setItems(n); }} className="w-full"/></td>
-                </tr>
-              ))}
+              {cotItems.map((item, i) => {
+                const costoConRecargo = (item.basoli || item.partzilla || item.otra) * MULTIPLICADOR
+                const alerta = item.precio_venta > 0 && item.precio_venta < costoConRecargo
+                return (
+                  <tr key={i} className={alerta ? 'bg-red-200' : 'hover:bg-gray-50'}>
+                    <td className="border p-1"><input className="w-12" type="number" value={item.cantidad} onChange={e => actualizarCelda(i, 'cantidad', e.target.value)} /></td>
+                    <td className="border p-1"><input className="w-full" value={item.codigo} onChange={e => actualizarCelda(i, 'codigo', e.target.value)} /></td>
+                    <td className="border p-1"><input className="w-20" type="number" value={item.precio_venta} onChange={e => actualizarCelda(i, 'precio_venta', parseFloat(e.target.value))} /></td>
+                    <td className="border p-1 text-[10px]">$ {costoConRecargo.toFixed(2)}</td>
+                    <td className="border p-1"><button type="button" onClick={() => setItemActivoIndex(i)} className="text-blue-600">Detalle</button></td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
-
-          <div className="flex gap-4">
-            <button onClick={() => setVista('lista')} className="bg-gray-400 text-white px-4 py-2 rounded">Cancelar</button>
-            <button onClick={guardarTodo} className="bg-green-600 text-white px-4 py-2 rounded">Guardar</button>
-          </div>
-        </div>
+          <button type="submit" className="bg-green-600 text-white px-6 py-2 rounded">Guardar Cambios</button>
+        </form>
       )}
     </div>
   )
