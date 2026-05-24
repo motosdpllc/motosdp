@@ -1,99 +1,128 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, fmt, fmtDate, type Cliente } from '@/lib/supabase'
 
-export default function DashboardPage() {
-  const [stats, setStats] = useState({ vendidos: 0, stock: 0, totalPeso: 0 })
-  const [huerfanos, setHuerfanos] = useState<any[]>([])
+export default function CotizacionesPage() {
+  const [vista, setVista] = useState<'lista' | 'form'>('lista')
+  const [cotizaciones, setCotizaciones] = useState<any[]>([])
+  const [clientes, setClientes] = useState<Cliente[]>([])
   const [loading, setLoading] = useState(true)
+  const [editId, setEditId] = useState<string | null>(null)
+
+  // Estado del formulario principal
+  const [f, setF] = useState({
+    nro: '',
+    fecha: '',
+    cliente_id: '',
+    cliente_nombre: '',
+    destino: 'AR',
+    vin: '',
+    precio_final: 0
+  })
+
+  // Estado de los ítems de la cotización (Matriz Masiva de 30 líneas)
+  const [cotItems, setCotItems] = useState<any[]>([])
+  const [rawText, setRawText] = useState('')
+  const [cliSearch, setCliSearch] = useState('')
 
   useEffect(() => {
-    fetchDashboardData()
+    fetchData()
   }, [])
 
-  const fetchDashboardData = async () => {
+  const fetchData = async () => {
     setLoading(true)
+    const { data: cots } = await supabase
+      .from('cotizaciones')
+      .select('*, cotizacion_items(*)')
+      .order('created_at', { ascending: false })
     
-    const { data: items } = await supabase
-      .from('cotizacion_items')
+    const { data: clis } = await supabase
+      .from('clientes')
       .select('*')
+      .order('nombre')
 
-    const { data: hurf } = await supabase
-      .from('cotizacion_items')
-      .select('*')
-      .is('cotizacion_id', null)
-
-    if (items) {
-      if (hurf) setHuerfanos(hurf)
-
-      // Engañamos a TypeScript accediendo como propiedad dinámica de objeto para evitar el error de tipo Destino
-      const itemsVendidos = items.filter(x => (x as any)['destino'] === 'Venta' || (x as any)['destino'] === 'AR')
-      const itemsEnStock = items.filter(x => (x as any)['destino'] === 'Stock' || (x as any)['destino'] === 'USA')
-
-      const peso = items.reduce((acc, item) => acc + (Number(item.peso) || 0), 0)
-
-      setStats({
-        vendidos: itemsVendidos.length,
-        stock: itemsEnStock.length,
-        totalPeso: parseFloat(peso.toFixed(2))
-      })
-    }
-
+    if (cots) setCotizaciones(cots)
+    if (clis) setClientes(clis)
     setLoading(false)
   }
 
-  return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">Panel de Control</h1>
+  // Procesador del pegado masivo de texto
+  const procesarPegadoMasivo = () => {
+    if (!rawText.trim()) return
+    const lineas = rawText.split('\n')
+    const nuevosItems = lineas
+      .map(linea => {
+        const columnas = linea.split('\t')
+        if (!columnas[0] && !columnas[1]) return null
 
-      {loading ? (
-        <p className="text-gray-500">Cargando estadísticas...</p>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="bg-white p-6 rounded-xl shadow border-l-4 border-green-500">
-              <p className="text-xs font-bold text-gray-500 uppercase">Items Destino AR / Venta</p>
-              <p className="text-3xl font-black text-gray-800 mt-2">{stats.vendidos}</p>
-            </div>
-            <div className="bg-white p-6 rounded-xl shadow border-l-4 border-blue-500">
-              <p className="text-xs font-bold text-gray-500 uppercase">Items Destino USA / Stock</p>
-              <p className="text-3xl font-black text-gray-800 mt-2">{stats.stock}</p>
-            </div>
-            <div className="bg-white p-6 rounded-xl shadow border-l-4 border-yellow-500">
-              <p className="text-xs font-bold text-gray-500 uppercase">Peso Total Acumulado</p>
-              <p className="text-3xl font-black text-gray-800 mt-2">{stats.totalPeso} kg</p>
-            </div>
-          </div>
+        const cantidad = parseInt(columnas[0]) || 1
+        const codigo = (columnas[1] || '').trim()
+        const descripcion = (columnas[2] || '').trim()
+        const peso = parseFloat(columnas[3]) || 0
+        const basoli = parseFloat(columnas[4]) || 0
+        const partzilla = parseFloat(columnas[5]) || 0
+        const otra = parseFloat(columnas[6]) || 0
+        const precio_venta = parseFloat(columnas[7]) || 0
 
-          {huerfanos.length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-6">
-              <h2 className="text-lg font-bold text-red-800 mb-2">¡Atención! Ítems Huérfanos Detectados</h2>
-              <p className="text-sm text-red-600 mb-4">Hay {huerfanos.length} repuestos en la base de datos que no están asignados a ninguna cotización existente.</p>
-              <div className="bg-white rounded-lg overflow-hidden border border-red-100 max-h-60 overflow-y-auto">
-                <table className="min-w-full divide-y divide-gray-200 text-xs">
-                  <thead className="bg-red-100 font-bold text-red-700">
-                    <tr>
-                      <th className="p-2 text-left">Código</th>
-                      <th className="p-2 text-left">Descripción</th>
-                      <th className="p-2 text-center">Cantidad</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {huerfanos.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-red-50 font-mono">
-                        <td className="p-2 font-bold text-gray-700">{item.codigo || 'S/C'}</td>
-                        <td className="p-2 text-gray-600">{item.descripcion || 'Sin descripción'}</td>
-                        <td className="p-2 text-center text-gray-600">{item.cantidad}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  )
-}
+        let proveedor_elegido = 'basoli'
+        if (partzilla > 0 && (basoli === 0 || partzilla < basoli)) proveedor_elegido = 'partzilla'
+        if (otra > 0 && (otra < basoli || basoli === 0) && (otra < partzilla || partzilla === 0)) proveedor_elegido = 'otra'
+
+        return { cantidad, codigo, descripcion, peso, basoli, partzilla, otra, precio_venta, proveedor_elegido }
+      })
+      .filter(Boolean)
+
+    if (nuevosItems.length > 0) {
+      // Rellena hasta 30 ítems para mantener la estructura visual de la matriz
+      const matrizCompleta = [...nuevosItems]
+      while (matrizCompleta.length < 30) {
+        matrizCompleta.push({ cantidad: 1, codigo: '', descripcion: '', peso: 0, basoli: 0, partzilla: 0, otra: 0, precio_venta: 0, proveedor_elegido: 'basoli' })
+      }
+      setCotItems(matrizCompleta)
+      setRawText('')
+    }
+  }
+
+  const actualizarCeldaItem = (index: number, campo: string, valor: any) => {
+    const copia = [...cotItems]
+    copia[index] = { ...copia[index], [campo]: valor }
+    setCotItems(copia)
+  }
+
+  const nuevaCot = async () => {
+    setEditId(null)
+    const { data: cnt } = await supabase.rpc('increment_counter', { counter_key: 'cot' })
+    setF({
+      nro: 'COT-' + String(cnt || 1).padStart(3, '0'),
+      fecha: new Date().toISOString().split('T')[0],
+      cliente_id: '', 
+      cliente_nombre: '', 
+      destino: 'AR', 
+      vin: '',
+      precio_final: 0
+    })
+    
+    const matrizInicial = Array.from({ length: 30 }, () => ({
+      cantidad: 1, codigo: '', descripcion: '', peso: 0, basoli: 0, partzilla: 0, otra: 0, precio_venta: 0, proveedor_elegido: 'basoli'
+    }))
+    setCotItems(matrizInicial)
+    setCliSearch('')
+    setVista('form')
+  }
+
+  const editarCot = (cot: any) => {
+    setEditId(cot.id)
+    setF({
+      nro: cot.nro, 
+      fecha: cot.fecha || '',
+      cliente_id: cot.cliente_id || '', 
+      cliente_nombre: cot.cliente_nombre || '',
+      destino: cot.destino || 'AR', 
+      vin: cot.vin || '',
+      precio_final: cot.precio_final || 0
+    })
+    setCliSearch(cot.cliente_nombre || '')
+    
+    const itemsCargados = cot.cotizacion_items || []
+    const
