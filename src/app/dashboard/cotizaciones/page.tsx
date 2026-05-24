@@ -172,8 +172,7 @@ export default function CotizacionesPage() {
   }
 
   const clisFiltrados = clientes.filter(c => 
-    c.nombre.toLowerCase().includes(cliSearch.toLowerCase()) || 
-    (c.alias && c.alias.toLowerCase().includes(cliSearch.toLowerCase()))
+    c.nombre.toLowerCase().includes(cliSearch.toLowerCase())
   )
 
   return (
@@ -252,7 +251,7 @@ export default function CotizacionesPage() {
               <div className="absolute z-10 left-4 right-4 bg-white border rounded shadow-lg max-h-40 overflow-y-auto mt-1">
                 {clisFiltrados.map(c => (
                   <div key={c.id} onClick={() => { setF({...f, cliente_id: c.id, cliente_nombre: c.nombre}); setCliSearch(c.nombre) }} className="p-2 hover:bg-gray-100 cursor-pointer text-sm">
-                    {c.nombre} {c.alias ? `(${c.alias})` : ''}
+                    {c.nombre}
                   </div>
                 ))}
               </div>
