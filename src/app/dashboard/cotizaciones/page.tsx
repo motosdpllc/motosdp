@@ -15,12 +15,10 @@ export default function DashboardPage() {
   const fetchDashboardData = async () => {
     setLoading(true)
     
-    // Trae ítems para armar las métricas
     const { data: items } = await supabase
       .from('cotizacion_items')
       .select('*')
 
-    // Trae ítems sin cotización vinculada (huérfanos)
     const { data: hurf } = await supabase
       .from('cotizacion_items')
       .select('*')
@@ -29,9 +27,10 @@ export default function DashboardPage() {
     if (items) {
       if (hurf) setHuerfanos(hurf)
 
-      // Forzamos el tipo como 'any' en el filtro para que TypeScript no chille por 'Venta' o 'Stock'
-      const itemsVendidos = items.filter((x: any) => x.destino === 'Venta' || x.destino === 'AR')
-      const itemsEnStock = items.filter((x: any) => x.destino === 'Stock' || x.destino === 'USA')
+      // @ts-ignore
+      const itemsVendidos = items.filter(x => x.destino === 'Venta' || x.destino === 'AR')
+      // @ts-ignore
+      const itemsEnStock = items.filter(x => x.destino === 'Stock' || x.destino === 'USA')
 
       const peso = items.reduce((acc, item) => acc + (Number(item.peso) || 0), 0)
 
@@ -53,7 +52,6 @@ export default function DashboardPage() {
         <p className="text-gray-500">Cargando estadísticas...</p>
       ) : (
         <>
-          {/* Tarjetas de Métricas */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div className="bg-white p-6 rounded-xl shadow border-l-4 border-green-500">
               <p className="text-xs font-bold text-gray-500 uppercase">Items Destino AR / Venta</p>
@@ -69,7 +67,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Alertas de Ítems Huérfanos */}
           {huerfanos.length > 0 && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-6">
               <h2 className="text-lg font-bold text-red-800 mb-2">¡Atención! Ítems Huérfanos Detectados</h2>
