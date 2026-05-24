@@ -158,7 +158,8 @@ export default function CotizacionesPage() {
     setF({
       nro: 'COT-' + String(cnt || 1).padStart(3, '0'),
       fecha: new Date().toISOString().split('T')[0],
-      cliente_id: '', cliente_nombre: '', destino: 'AR', vin: ''
+      cliente_id: '', cliente_nombre: '', destino: 'AR', vin: '',
+      precio_final: 0
     })
     setCotItems([{ cantidad: 1, codigo: '', descripcion: '', peso: 0, basoli: 0, partzilla: 0, otra: 0, precio_venta: 0, proveedor_elegido: 'basoli' }])
     setCliSearch('')
