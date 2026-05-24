@@ -47,7 +47,7 @@ export default function CotizacionesPage() {
     setLoading(false)
   }
 
-  // Procesador del pegado masivo de texto
+  // Procesador del pegado masivo de texto con cálculo de 1.11 para Partzilla
   const procesarPegadoMasivo = () => {
     if (!rawText.trim()) return
     const lineas = rawText.split('\n')
@@ -65,16 +65,22 @@ export default function CotizacionesPage() {
         const otra = parseFloat(columnas[6]) || 0
         const precio_venta = parseFloat(columnas[7]) || 0
 
+        // Aplicamos el recargo del 11% a Partzilla para la comparativa de mejor precio
+        const partzillaConRecargo = partzilla * 1.11
+
         let proveedor_elegido = 'basoli'
-        if (partzilla > 0 && (basoli === 0 || partzilla < basoli)) proveedor_elegido = 'partzilla'
-        if (otra > 0 && (otra < basoli || basoli === 0) && (otra < partzilla || partzilla === 0)) proveedor_elegido = 'otra'
+        if (partzilla > 0 && (basoli === 0 || partzillaConRecargo < basoli)) {
+          proveedor_elegido = 'partzilla'
+        }
+        if (otra > 0 && (otra < basoli || basoli === 0) && (otra < (partzilla > 0 ? partzillaConRecargo : 0) || partzilla === 0)) {
+          proveedor_elegido = 'otra'
+        }
 
         return { cantidad, codigo, descripcion, peso, basoli, partzilla, otra, precio_venta, proveedor_elegido }
       })
       .filter(Boolean)
 
     if (nuevosItems.length > 0) {
-      // Rellena hasta 30 ítems para mantener la estructura visual de la matriz
       const matrizCompleta = [...nuevosItems]
       while (matrizCompleta.length < 30) {
         matrizCompleta.push({ cantidad: 1, codigo: '', descripcion: '', peso: 0, basoli: 0, partzilla: 0, otra: 0, precio_venta: 0, proveedor_elegido: 'basoli' })
