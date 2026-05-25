@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { supabase, fmtDate, fmt, getNextCounter } from '@/lib/supabase'
+import { supabase, fmt, fmtDate, getNextCounter } from '@/lib/supabase'
+import toast from 'react-hot-toast' // Asumiendo que usas react-hot-toast
 
 const MULTIPLICADOR = 1.11
 
@@ -67,7 +68,6 @@ const elegirMejorProveedor = (item: CotizacionItem): 'basoli' | 'partzilla' | 'o
   ]
 
   const conPrecio = proveedores.filter(p => p.precio > 0)
-
   if (conPrecio.length === 0) return null
 
   const mejorProveedor = conPrecio.reduce((prev, current) =>
@@ -113,6 +113,9 @@ export default function CotizacionesPage() {
   })
   const [enviandoWhatsapp, setEnviandoWhatsapp] = useState(false)
 
+  // Calculo el subtotal de todos los items
+  const subtotalItems = items.reduce((sum, item) => sum + (item.cantidad * item.precio_venta), 0)
+
   useEffect(() => {
     const cargar = async () => {
       try {
@@ -129,8 +132,9 @@ export default function CotizacionesPage() {
 
         if (cots) setCotizaciones(cots as Cotizacion[])
         if (clis) setClientes(clis as Cliente[])
-      } catch (err) {
-        alert('Error al cargar datos: ' + (err instanceof Error ? err.message : 'Error desconocido'))
+      } catch (error) {
+        toast.error('Error al cargar datos')
+        console.error(error)
       } finally {
         setLoading(false)
       }
@@ -161,7 +165,7 @@ export default function CotizacionesPage() {
 
   const procesarPegadoMasivo = () => {
     if (!rawText.trim()) {
-      alert('Pegá datos primero')
+      toast.error('Pegá datos primero')
       return
     }
 
@@ -197,9 +201,9 @@ export default function CotizacionesPage() {
 
       setItems(nuevosItems.slice(0, 30))
       setRawText('')
-      alert(`✅ Se procesaron ${lineas.length} filas`)
+      toast.success(`✅ Se procesaron ${lineas.length} filas`)
     } catch (err) {
-      alert('Error al procesar: ' + (err instanceof Error ? err.message : 'Error'))
+      toast.error('Error al procesar')
     }
   }
 
@@ -233,14 +237,12 @@ export default function CotizacionesPage() {
     const activos = items.filter(i => (i.codigo.trim() !== '' || i.descripcion.trim() !== '') && i.cantidad > 0)
     const pendientes = items.filter(i => (i.codigo.trim() !== '' || i.descripcion.trim() !== '') && i.cantidad === 0)
 
-    const porProveedor = {
+    return {
       basoli: activos.filter(i => i.proveedor_elegido === 'basoli'),
       partzilla: activos.filter(i => i.proveedor_elegido === 'partzilla'),
       otra: activos.filter(i => i.proveedor_elegido === 'otra'),
-      sin: activos.filter(i => !i.proveedor_elegido)
+      pendientes
     }
-
-    return { ...porProveedor, pendientes }
   }
 
   const nuevaCotizacion = async () => {
@@ -265,7 +267,7 @@ export default function CotizacionesPage() {
       setEditId(null)
       setVista('editar')
     } catch (err) {
-      alert('Error: ' + (err instanceof Error ? err.message : 'Error'))
+      toast.error('Error')
     }
   }
 
@@ -316,14 +318,14 @@ export default function CotizacionesPage() {
     e.preventDefault()
 
     if (!nro || !clienteNombre) {
-      alert('⚠️ Número de cotización y cliente son requeridos')
+      toast.error('⚠️ Número y cliente son requeridos')
       return
     }
 
     if (enviarWhatsapp) {
       const clienteData = clientes.find(c => c.id === clienteId)
       if (!clienteData?.telefono) {
-        alert('⚠️ El cliente no tiene teléfono registrado')
+        toast.error('⚠️ El cliente no tiene teléfono')
         return
       }
     }
@@ -332,13 +334,8 @@ export default function CotizacionesPage() {
       setGuardando(true)
 
       const datos = {
-        nro,
-        fecha,
-        cliente_id: clienteId,
-        cliente_nombre: clienteNombre,
-        destino,
-        vin,
-        precio_final: precioFinal,
+        nro, fecha, cliente_id: clienteId, cliente_nombre: clienteNombre,
+        destino, vin, precio_final: precioFinal,
         fecha_envio_programado: fechaEnvioProgramado || null,
         hora_programada: horaEnvioProgramado || null,
         enviar_automatico: enviarAutomatico,
@@ -350,201 +347,168 @@ export default function CotizacionesPage() {
       let cotizacionId = editId
 
       if (editId) {
-        const { error } = await supabase
-          .from('cotizaciones')
-          .update(datos)
-          .eq('id', editId)
-
+        const { error } = await supabase.from('cotizaciones').update(datos).eq('id', editId)
         if (error) throw error
       } else {
-        const { data, error } = await supabase
-          .from('cotizaciones')
-          .insert([datos])
-          .select()
-          .single()
-
+        const { data, error } = await supabase.from('cotizaciones').insert([datos]).select().single()
         if (error) throw error
         cotizacionId = data.id
       }
 
       if (cotizacionId) {
-        await supabase
-          .from('cotizacion_items')
-          .delete()
-          .eq('cotizacion_id', cotizacionId)
+        await supabase.from('cotizacion_items').delete().eq('cotizacion_id', cotizacionId)
 
         const itemsAGuardar = items
           .filter(i => i.codigo.trim() !== '' || i.descripcion.trim() !== '')
           .map(i => ({
             cotizacion_id: cotizacionId,
-            cantidad: i.cantidad,
-            codigo: i.codigo,
-            descripcion: i.descripcion,
-            peso_estimado: i.peso_estimado,
-            basoli: i.basoli,
-            partzilla: i.partzilla,
-            otra: i.otra,
-            precio_venta: i.precio_venta,
-            proveedor_elegido: i.proveedor_elegido,
-            proveedor_otro_nombre: i.proveedor_otro_nombre,
-            proveedor_otro_link: i.proveedor_otro_link
+            cantidad: i.cantidad, codigo: i.codigo, descripcion: i.descripcion,
+            peso_estimado: i.peso_estimado, basoli: i.basoli, partzilla: i.partzilla,
+            otra: i.otra, precio_venta: i.precio_venta, proveedor_elegido: i.proveedor_elegido,
+            proveedor_otro_nombre: i.proveedor_otro_nombre, proveedor_otro_link: i.proveedor_otro_link
           }))
 
         if (itemsAGuardar.length > 0) {
-          const { error: insertError } = await supabase
-            .from('cotizacion_items')
-            .insert(itemsAGuardar)
-
-          if (insertError) throw insertError
+          const { error } = await supabase.from('cotizacion_items').insert(itemsAGuardar)
+          if (error) throw error
         }
       }
 
-      alert('✅ Cotización guardada correctamente')
+      toast.success('✅ Guardada')
 
       if (enviarWhatsapp) {
         setEnviandoWhatsapp(true)
         const clienteData = clientes.find(c => c.id === clienteId)
         if (clienteData?.telefono) {
-          const mensaje = encodeURIComponent(
-            mensajeWhatsapp || `Hola ${clienteNombre}, te envío la cotización ${nro}`
-          )
+          const mensaje = encodeURIComponent(mensajeWhatsapp || `Hola ${clienteNombre}, cotización ${nro}`)
           window.open(`https://wa.me/${clienteData.telefono}?text=${mensaje}`, '_blank')
         }
-        
         const { data: cots } = await supabase
-          .from('cotizaciones')
-          .select('*, cotizacion_items(*)')
+          .from('cotizaciones').select('*, cotizacion_items(*)')
           .order('created_at', { ascending: false })
-        
         if (cots) setCotizaciones(cots as Cotizacion[])
         setEnviandoWhatsapp(false)
       } else {
         const { data: cots } = await supabase
-          .from('cotizaciones')
-          .select('*, cotizacion_items(*)')
+          .from('cotizaciones').select('*, cotizacion_items(*)')
           .order('created_at', { ascending: false })
-
         if (cots) setCotizaciones(cots as Cotizacion[])
       }
 
       setVista('lista')
       setEditId(null)
     } catch (err) {
-      alert('❌ Error al guardar: ' + (err instanceof Error ? err.message : 'Error'))
+      toast.error('❌ Error')
+      console.error(err)
     } finally {
       setGuardando(false)
     }
   }
 
   const eliminarCotizacion = async (id: string) => {
-    if (!confirm('¿Estás seguro de que querés eliminar esta cotización?')) return
-
+    if (!confirm('¿Eliminar?')) return
     try {
       setLoading(true)
-
       await supabase.from('cotizacion_items').delete().eq('cotizacion_id', id)
       await supabase.from('cotizaciones').delete().eq('id', id)
-
-      alert('✅ Cotización eliminada')
-
-      const { data: cots } = await supabase
-        .from('cotizaciones')
-        .select('*, cotizacion_items(*)')
-        .order('created_at', { ascending: false })
-
+      toast.success('✅ Eliminada')
+      const { data: cots } = await supabase.from('cotizaciones').select('*, cotizacion_items(*)').order('created_at', { ascending: false })
       if (cots) setCotizaciones(cots as Cotizacion[])
     } catch (err) {
-      alert('❌ Error: ' + (err instanceof Error ? err.message : 'Error'))
+      toast.error('❌ Error')
+      console.error(err)
     } finally {
       setLoading(false)
     }
   }
 
   const generarPDFCliente = () => {
-    const { basoli, partzilla, otra, pendientes } = itemsOrdenados()
-    const todosActivos = [...basoli, ...partzilla, ...otra]
+    const ordenados = itemsOrdenados()
+    const todosActivos = [...ordenados.basoli, ...ordenados.partzilla, ...ordenados.otra]
 
-    let filas = ''
-    let subtotal = 0
-
+    let filas = '', totalVenta = 0
     todosActivos.forEach(item => {
-      const total = item.precio_venta * item.cantidad
-      subtotal += total
+      const totalItem = item.precio_venta * item.cantidad
+      totalVenta += totalItem
 
-      const linkHTML = mostrarLinks && item.proveedor_otro_link
-        ? `<br/><a href="${item.proveedor_otro_link}" style="color: #0066cc; font-size: 11px;">🔗 Ver producto</a>`
-        : ''
-
-      const precioHTML = mostrarPreciosIndividuales
-        ? `<td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">$${item.precio_venta.toFixed(2)}</td>
-           <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">$${total.toFixed(2)}</td>`
-        : `<td colspan="2" style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold; color: #0066cc;">Incluido</td>`
+      const linkHTML = mostrarLinks && item.proveedor_otro_link ? `<br/><a href="${item.proveedor_otro_link}" style="color: #0066cc; font-size: 11px;">🔗 Ver producto</a>` : ''
+      const precioUnitarioHTML = mostrarPreciosIndividuales ? `$${item.precio_venta.toFixed(2)}` : 'Incluido'
+      const subtotalItemHTML = mostrarPreciosIndividuales ? `$${totalItem.toFixed(2)}` : 'Incluido'
 
       filas += `
         <tr>
-          <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${item.cantidad}</td>
-          <td style="border: 1px solid #ddd; padding: 8px;">${item.codigo}</td>
-          <td style="border: 1px solid #ddd; padding: 8px;">
+          <td style="border: 1px solid #e0e0e0; padding: 10px; text-align: center;">${item.cantidad}</td>
+          <td style="border: 1px solid #e0e0e0; padding: 10px; font-family: 'Courier New', Courier, monospace;">${item.codigo}</td>
+          <td style="border: 1px solid #e0e0e0; padding: 10px;">
             ${item.descripcion}
             ${linkHTML}
           </td>
-          ${precioHTML}
+          <td style="border: 1px solid #e0e0e0; padding: 10px; text-align: right;">${precioUnitarioHTML}</td>
+          <td style="border: 1px solid #e0e0e0; padding: 10px; text-align: right;">${subtotalItemHTML}</td>
         </tr>
       `
     })
 
     const encabezadoTabla = mostrarPreciosIndividuales
-      ? '<th style="border: 1px solid #ddd; padding: 8px;">Precio Unit.</th><th style="border: 1px solid #ddd; padding: 8px;">Subtotal</th>'
-      : '<th style="border: 1px solid #ddd; padding: 8px;" colspan="2">Valor</th>'
+      ? '<th>Precio Unit.</th><th>Subtotal</th>'
+      : '<th colspan="2">Valor</th>'
 
-    const printWindow = window.open('', '', 'height=600,width=800')
+    const LOGO_URL = 'https://your-logo-url.com/logo.png'; // Reemplaza con la URL de tu logo
+
+    const printWindow = window.open('', '', 'height=800,width=1000')
     if (printWindow) {
       printWindow.document.write(`
         <html>
           <head>
             <meta charset="UTF-8" />
+            <title>Cotización ${nro} - ${clienteNombre}</title>
+            <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
             <style>
-              body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
-              .header { margin-bottom: 20px; border-bottom: 2px solid #0066cc; padding-bottom: 10px; }
-              .header h1 { margin: 0; color: #0066cc; font-size: 24px; }
-              .header p { margin: 5px 0; font-size: 12px; color: #666; }
-              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-              th { background-color: #f0f0f0; font-weight: bold; text-align: left; border: 1px solid #ddd; padding: 8px; }
-              td { border: 1px solid #ddd; padding: 8px; }
-              .total-row { background-color: #f9f9f9; font-weight: bold; font-size: 14px; }
-              .final-price { background-color: #0066cc; color: white; font-size: 18px; font-weight: bold; padding: 15px; text-align: right; margin-top: 20px; border-radius: 5px; }
-              .pendientes { margin-top: 20px; padding: 10px; background-color: #fffacd; border-left: 4px solid #ffc107; }
-              .pendientes p { margin: 0; font-size: 12px; }
-              .footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 11px; color: #999; }
+              body { font-family: 'Roboto', sans-serif; padding: 30px; color: #333; line-height: 1.6; }
+              .header { text-align: center; margin-bottom: 30px; padding-bottom: 15px; border-bottom: 2px solid #0066cc; }
+              .header img { max-height: 80px; margin-bottom: 10px; }
+              .header h1 { margin: 0; color: #0066cc; font-size: 32px; font-weight: 700; }
+              .header p { margin: 5px 0; font-size: 14px; color: #555; }
+              .info-box { background-color: #f0f8ff; border: 1px solid #b0e0e6; padding: 15px; border-radius: 8px; margin-bottom: 25px; }
+              .info-box p { margin: 5px 0; }
+              table { width: 100%; border-collapse: collapse; margin-top: 25px; border: 1px solid #e0e0e0; }
+              th, td { border: 1px solid #e0e0e0; padding: 12px; text-align: left; }
+              th { background-color: #e6f7ff; color: #0066cc; font-weight: 700; text-transform: uppercase; font-size: 13px; }
+              .total-row td { background-color: #f0f0f0; font-weight: bold; font-size: 15px; }
+              .final-price-box { background-color: #0066cc; color: white; font-size: 24px; font-weight: 700; padding: 20px; text-align: right; margin-top: 30px; border-radius: 8px; }
+              .pendientes { margin-top: 25px; padding: 15px; background-color: #fff8e1; border-left: 5px solid #ffc107; color: #8d6e63; }
+              .pendientes p { margin: 0; font-size: 13px; }
+              .footer { margin-top: 40px; padding-top: 15px; border-top: 1px solid #e0e0e0; font-size: 11px; color: #999; text-align: center; }
               @media print { body { margin: 0; padding: 0; } }
             </style>
           </head>
           <body>
             <div class="header">
-              <h1>${nro}</h1>
+              ${LOGO_URL !== 'https://your-logo-url.com/logo.png' ? `<img src="${LOGO_URL}" alt="Logo de la empresa" />` : ''}
+              <h1>COTIZACIÓN ${nro}</h1>
+              <p>Fecha: ${new Date(fecha).toLocaleDateString('es-AR')}</p>
+            </div>
+
+            <div class="info-box">
               <p><strong>Cliente:</strong> ${clienteNombre}</p>
-              <p><strong>Fecha:</strong> ${new Date(fecha).toLocaleDateString('es-AR')}</p>
               ${vin ? `<p><strong>VIN:</strong> ${vin}</p>` : ''}
             </div>
 
             <table>
               <thead>
                 <tr>
-                  <th style="border: 1px solid #ddd; padding: 8px; width: 50px;">Cant</th>
-                  <th style="border: 1px solid #ddd; padding: 8px; width: 80px;">Código</th>
-                  <th style="border: 1px solid #ddd; padding: 8px;">Descripción</th>
+                  <th style="width: 50px; text-align: center;">Cant</th>
+                  <th style="width: 100px;">Código</th>
+                  <th>Descripción</th>
                   ${encabezadoTabla}
                 </tr>
               </thead>
               <tbody>
                 ${filas}
-                ${mostrarPreciosIndividuales ? `
-                  <tr class="total-row">
-                    <td colspan="3" style="border: 1px solid #ddd; padding: 8px; text-align: right;">SUBTOTAL:</td>
-                    <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">$${subtotal.toFixed(2)}</td>
-                    <td></td>
-                  </tr>
-                ` : ''}
+                <tr class="total-row">
+                  <td colspan="3" style="text-align: right;">SUBTOTAL DE ÍTEMS:</td>
+                  <td colspan="2" style="text-align: right;">$${totalVenta.toFixed(2)}</td>
+                </tr>
               </tbody>
             </table>
 
@@ -555,7 +519,7 @@ export default function CotizacionesPage() {
             ` : ''}
 
             ${precioFinal > 0 ? `
-              <div class="final-price">
+              <div class="final-price-box">
                 PRECIO FINAL: $${precioFinal.toFixed(2)}
               </div>
             ` : ''}
@@ -572,81 +536,80 @@ export default function CotizacionesPage() {
   }
 
   const generarPDFProveedor = (proveedor: 'basoli' | 'partzilla' | 'otra') => {
-    const { basoli, partzilla, otra } = itemsOrdenados()
-    const items = proveedor === 'basoli' ? basoli : proveedor === 'partzilla' ? partzilla : otra
+    const ordenados = itemsOrdenados()
+    const items = proveedor === 'basoli' ? ordenados.basoli : proveedor === 'partzilla' ? ordenados.partzilla : ordenados.otra
 
     if (items.length === 0) {
-      alert('No hay items para este proveedor')
+      toast.error('No hay items para este proveedor')
       return
     }
 
     const nombreProveedor = proveedor === 'basoli' ? 'BÁSOLI' : proveedor === 'partzilla' ? 'PARTZILLA' : 'OTROS PROVEEDORES'
+    const LOGO_URL = 'https://your-logo-url.com/logo.png'; // Reemplaza con la URL de tu logo
 
-    let filas = ''
-    let totalCosto = 0
-
+    let filas = '', totalCosto = 0
     items.forEach(item => {
-      const costo = (
-        proveedor === 'basoli' ? item.basoli :
-        proveedor === 'partzilla' ? item.partzilla :
-        item.otra
-      ) * MULTIPLICADOR
+      const costo = (proveedor === 'basoli' ? item.basoli : proveedor === 'partzilla' ? item.partzilla : item.otra) * MULTIPLICADOR
       const total = costo * item.cantidad
       totalCosto += total
-
       filas += `
         <tr>
-          <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${item.cantidad}</td>
-          <td style="border: 1px solid #ddd; padding: 8px;">${item.codigo}</td>
-          <td style="border: 1px solid #ddd; padding: 8px;">${item.descripcion}</td>
-          <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">$${costo.toFixed(2)}</td>
-          <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">$${total.toFixed(2)}</td>
+          <td style="border: 1px solid #e0e0e0; padding: 10px; text-align: center;">${item.cantidad}</td>
+          <td style="border: 1px solid #e0e0e0; padding: 10px; font-family: 'Courier New', Courier, monospace;">${item.codigo}</td>
+          <td style="border: 1px solid #e0e0e0; padding: 10px;">${item.descripcion}</td>
+          <td style="border: 1px solid #e0e0e0; padding: 10px; text-align: right;">$${costo.toFixed(2)}</td>
+          <td style="border: 1px solid #e0e0e0; padding: 10px; text-align: right;">$${total.toFixed(2)}</td>
         </tr>
       `
     })
 
-    const printWindow = window.open('', '', 'height=600,width=800')
+    const printWindow = window.open('', '', 'height=800,width=1000')
     if (printWindow) {
       printWindow.document.write(`
         <html>
           <head>
             <meta charset="UTF-8" />
+            <title>Pedido ${nombreProveedor} - ${nro}</title>
+            <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
             <style>
-              body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
-              .header { margin-bottom: 20px; border-bottom: 2px solid #ff6b00; padding-bottom: 10px; }
-              .header h1 { margin: 0; color: #ff6b00; font-size: 24px; }
-              .header p { margin: 5px 0; font-size: 12px; color: #666; }
-              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-              th { background-color: #ffe6cc; font-weight: bold; text-align: left; border: 1px solid #ddd; padding: 8px; }
-              td { border: 1px solid #ddd; padding: 8px; }
-              .total-row { background-color: #fff3e0; font-weight: bold; font-size: 14px; }
-              .footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 11px; color: #999; }
+              body { font-family: 'Roboto', sans-serif; padding: 30px; color: #333; line-height: 1.6; }
+              .header { text-align: center; margin-bottom: 30px; padding-bottom: 15px; border-bottom: 2px solid #ff6b00; }
+              .header img { max-height: 80px; margin-bottom: 10px; }
+              .header h1 { margin: 0; color: #ff6b00; font-size: 32px; font-weight: 700; }
+              .header p { margin: 5px 0; font-size: 14px; color: #555; }
+              .info-box { background-color: #fff0e0; border: 1px solid #ffcc99; padding: 15px; border-radius: 8px; margin-bottom: 25px; }
+              .info-box p { margin: 5px 0; }
+              table { width: 100%; border-collapse: collapse; margin-top: 25px; border: 1px solid #e0e0e0; }
+              th, td { border: 1px solid #e0e0e0; padding: 12px; text-align: left; }
+              th { background-color: #ffe6cc; color: #ff6b00; font-weight: 700; text-transform: uppercase; font-size: 13px; }
+              .total-row td { background-color: #f0f0f0; font-weight: bold; font-size: 15px; }
+              .footer { margin-top: 40px; padding-top: 15px; border-top: 1px solid #e0e0e0; font-size: 11px; color: #999; text-align: center; }
               @media print { body { margin: 0; padding: 0; } }
             </style>
           </head>
           <body>
             <div class="header">
-              <h1>📋 Pedido: ${nombreProveedor}</h1>
-              <p><strong>Cotización:</strong> ${nro}</p>
-              <p><strong>Cliente:</strong> ${clienteNombre}</p>
-              <p><strong>Fecha:</strong> ${new Date(fecha).toLocaleDateString('es-AR')}</p>
+              ${LOGO_URL !== 'https://your-logo-url.com/logo.png' ? `<img src="${LOGO_URL}" alt="Logo de la empresa" />` : ''}
+              <h1>PEDIDO A ${nombreProveedor}</h1>
+              <p>Cotización: ${nro} | Cliente: ${clienteNombre}</p>
+              <p>Fecha: ${new Date(fecha).toLocaleDateString('es-AR')}</p>
             </div>
 
             <table>
               <thead>
                 <tr>
-                  <th style="border: 1px solid #ddd; padding: 8px; width: 50px;">Cant</th>
-                  <th style="border: 1px solid #ddd; padding: 8px; width: 80px;">Código</th>
-                  <th style="border: 1px solid #ddd; padding: 8px;">Descripción</th>
-                  <th style="border: 1px solid #ddd; padding: 8px; width: 100px;">Costo x 1.11</th>
-                  <th style="border: 1px solid #ddd; padding: 8px; width: 100px;">Subtotal</th>
+                  <th style="width: 50px; text-align: center;">Cant</th>
+                  <th style="width: 100px;">Código</th>
+                  <th>Descripción</th>
+                  <th>Costo Unit. x ${MULTIPLICADOR}</th>
+                  <th>Subtotal</th>
                 </tr>
               </thead>
               <tbody>
                 ${filas}
                 <tr class="total-row">
-                  <td colspan="4" style="border: 1px solid #ddd; padding: 8px; text-align: right;">TOTAL COSTO:</td>
-                  <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">$${totalCosto.toFixed(2)}</td>
+                  <td colspan="4" style="text-align: right;">TOTAL COSTO:</td>
+                  <td style="text-align: right;">$${totalCosto.toFixed(2)}</td>
                 </tr>
               </tbody>
             </table>
@@ -665,7 +628,7 @@ export default function CotizacionesPage() {
   const abrirWhatsapp = (cot: Cotizacion) => {
     const cliente = clientes.find(c => c.id === cot.cliente_id)
     if (!cliente?.telefono) {
-      alert('El cliente no tiene teléfono registrado')
+      toast.error('El cliente no tiene teléfono registrado')
       return
     }
 
@@ -860,31 +823,9 @@ export default function CotizacionesPage() {
               )}
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-bold mb-1">Precio Final (opcional)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={precioFinal}
-                  onChange={e => setPrecioFinal(parseFloat(e.target.value) || 0)}
-                  className="w-full border rounded px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-bold mb-1">Mensaje WhatsApp</label>
-                <input
-                  type="text"
-                  value={mensajeWhatsapp}
-                  onChange={e => setMensajeWhatsapp(e.target.value)}
-                  className="w-full border rounded px-3 py-2 text-sm"
-                  placeholder="Saludo personalizado..."
-                />
-              </div>
-            </div>
-
+            {/* Opciones de PDF */}
             <div className="mt-4 p-4 bg-purple-50 rounded border border-purple-200">
-              <h3 className="font-bold text-sm mb-3">🎨 Opciones de PDF</h3>
+              <h3 className="font-bold text-sm mb-3">🎨 Opciones de PDF para Cliente</h3>
               <div className="space-y-2">
                 <label className="flex items-center gap-2">
                   <input
@@ -893,7 +834,7 @@ export default function CotizacionesPage() {
                     onChange={e => setMostrarLinks(e.target.checked)}
                     className="w-4 h-4"
                   />
-                  <span className="text-sm">Mostrar links de productos al cliente</span>
+                  <span className="text-sm">Mostrar links de productos</span>
                 </label>
                 <label className="flex items-center gap-2">
                   <input
@@ -905,41 +846,6 @@ export default function CotizacionesPage() {
                   <span className="text-sm">Mostrar precios individuales (si no: muestra "Incluido")</span>
                 </label>
               </div>
-            </div>
-
-            <div className="mt-4 p-4 bg-blue-50 rounded border border-blue-200">
-              <label className="flex items-center gap-2 mb-3">
-                <input
-                  type="checkbox"
-                  checked={enviarAutomatico}
-                  onChange={e => setEnviarAutomatico(e.target.checked)}
-                  className="w-4 h-4"
-                />
-                <span className="font-bold">📅 Programar envío automático</span>
-              </label>
-
-              {enviarAutomatico && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-bold mb-1">Fecha de envío</label>
-                    <input
-                      type="date"
-                      value={fechaEnvioProgramado}
-                      onChange={e => setFechaEnvioProgramado(e.target.value)}
-                      className="w-full border rounded px-3 py-2"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold mb-1">Hora de envío</label>
-                    <input
-                      type="time"
-                      value={horaEnvioProgramado}
-                      onChange={e => setHoraEnvioProgramado(e.target.value)}
-                      className="w-full border rounded px-3 py-2"
-                    />
-                  </div>
-                </div>
-              )}
             </div>
           </div>
 
@@ -1070,9 +976,10 @@ export default function CotizacionesPage() {
             )}
           </div>
 
+          {/* TABLA DE EDICIÓN INDIVIDUAL */}
           <div className="bg-white rounded-lg shadow overflow-x-auto mb-6">
             <div className="p-4 border-b bg-gray-50">
-              <h2 className="text-lg font-bold">Editar Items (Todos)</h2>
+              <h2 className="text-lg font-bold">Editar Items (Todos los detalles)</h2>
             </div>
             <table className="w-full text-sm">
               <thead>
@@ -1193,6 +1100,76 @@ export default function CotizacionesPage() {
             </table>
           </div>
 
+          {/* SECCIÓN FINAL DE COTIZACIÓN */}
+          <div className="bg-blue-50 p-6 rounded-lg shadow mb-6">
+            <h2 className="text-lg font-bold mb-3">💲 Resumen y Cierre</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold mb-1">Subtotal de Ítems</label>
+                <p className="w-full border rounded px-3 py-2 bg-gray-100 font-bold text-lg">
+                  {fmt(subtotalItems)}
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-bold mb-1">Precio Final (opcional)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={precioFinal}
+                  onChange={e => setPrecioFinal(parseFloat(e.target.value) || 0)}
+                  className="w-full border rounded px-3 py-2 font-bold text-lg"
+                />
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <label className="block text-sm font-bold mb-1">Mensaje WhatsApp (opcional)</label>
+              <textarea
+                value={mensajeWhatsapp}
+                onChange={e => setMensajeWhatsapp(e.target.value)}
+                className="w-full border rounded px-3 py-2 text-sm h-20"
+                placeholder="Hola [Cliente], aquí está tu cotización [Nro]..."
+              />
+            </div>
+          </div>
+
+          {/* Envío Programado */}
+          <div className="mt-4 p-4 bg-blue-50 rounded border border-blue-200">
+              <label className="flex items-center gap-2 mb-3">
+                <input
+                  type="checkbox"
+                  checked={enviarAutomatico}
+                  onChange={e => setEnviarAutomatico(e.target.checked)}
+                  className="w-4 h-4"
+                />
+                <span className="font-bold">📅 Programar envío automático de WhatsApp</span>
+              </label>
+
+              {enviarAutomatico && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold mb-1">Fecha de envío</label>
+                    <input
+                      type="date"
+                      value={fechaEnvioProgramado}
+                      onChange={e => setFechaEnvioProgramado(e.target.value)}
+                      className="w-full border rounded px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold mb-1">Hora de envío</label>
+                    <input
+                      type="time"
+                      value={horaEnvioProgramado}
+                      onChange={e => setHoraEnvioProgramado(e.target.value)}
+                      className="w-full border rounded px-3 py-2"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+          {/* BOTONES DE ACCIÓN */}
           <div className="flex gap-3 justify-end mb-6 flex-wrap">
             <button
               type="button"
