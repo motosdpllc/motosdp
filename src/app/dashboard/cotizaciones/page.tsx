@@ -446,8 +446,37 @@ export default function CotizacionesPage() {
             .from('cotizaciones')
             .select('*, cotizacion_items(*)')
             .order('created_at', { ascending: false })
-            .then(({ data: cots }) => {
-              if (cots) setCotizaciones(cots as Cotizacion[])
+            if (enviarWhatsapp) {
+  setEnviandoWhatsapp(true)
+  setTimeout(async () => {
+    const clienteData = clientes.find(c => c.id === clienteId)
+    if (clienteData?.telefono) {
+      const mensaje = encodeURIComponent(
+        mensajeWhatsapp || `Hola ${clienteNombre}, te envío la cotización ${nro}`
+      )
+      window.open(`https://wa.me/${clienteData.telefono}?text=${mensaje}`, '_blank')
+    }
+    
+    const { data: cots } = await supabase
+      .from('cotizaciones')
+      .select('*, cotizacion_items(*)')
+      .order('created_at', { ascending: false })
+    
+    if (cots) setCotizaciones(cots as Cotizacion[])
+    setEnviandoWhatsapp(false)
+    setVista('lista')
+    setEditId(null)
+  }, 500)
+} else {
+  setVista('lista')
+  setEditId(null)
+  const { data: cots } = await supabase
+    .from('cotizaciones')
+    .select('*, cotizacion_items(*)')
+    .order('created_at', { ascending: false })
+
+  if (cots) setCotizaciones(cots as Cotizacion[])
+}
             })
         }, 500)
       } else {
