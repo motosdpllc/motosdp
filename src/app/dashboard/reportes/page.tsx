@@ -48,7 +48,7 @@ export default function ReportesPage() {
           setItems(data as ItemVenta[])
 
           // Extraer clientes únicos
-          const clientesUnicos = [...new Set(data.map(item => item.cliente_nombre).filter(Boolean))] as string[]
+         const clientesUnicos = Array.from(new Set(data.map(item => item.cliente_nombre).filter(Boolean))) as string[]
           setClientes(clientesUnicos.sort())
         }
       } catch (err) {
