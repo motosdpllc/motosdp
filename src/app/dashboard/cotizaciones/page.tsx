@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { supabase, fmtDate, fmt, getNextCounter } from '@/lib/supabase'
-import html2pdf from 'html2pdf.js'
+let html2pdf: any = null
+if (typeof window !== 'undefined') {
+  html2pdf = require('html2pdf.js')
+}
 
 const MULTIPLICADOR = 1.11
 
