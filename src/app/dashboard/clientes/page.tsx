@@ -53,25 +53,24 @@ export default function ClientesPage() {
     setVista('form')
   }
 
- const eliminar = async (id: string) => {
+  const eliminar = async (id: string) => {
     if (!confirm('¿Eliminar este cliente?')) return
     try {
-      console.log('Intentando eliminar cliente con ID:', id);
       const { data, error } = await supabase.from('clientes').delete().eq('id', id);
 
       if (error) {
-        throw error; // Lanza el error para que sea capturado
+        throw error;
       }
 
-      console.log('Respuesta de Supabase al eliminar:', data);
+      console.log('Cliente eliminado de Supabase:', data); // Ver si Supabase realmente devuelve algo
       toast.success('Cliente eliminado');
       setSelectedCli(null);
       setVista('agenda');
       await load(); // Recarga la lista después de eliminar
     } catch (err) {
-      console.error('ERROR AL ELIMINAR:', err); // Imprime el error completo en consola
+      console.error('ERROR AL ELIMINAR:', err);
       toast.error('Error al eliminar: ' + (err instanceof Error ? err.message : 'Error desconocido'));
-    }}
+    }
   }
 
   const verDetalle = async (c: Cliente) => {
