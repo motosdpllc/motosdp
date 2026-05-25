@@ -85,11 +85,6 @@ export default function DashboardPage() {
           <p className="text-gray-600 text-lg">{new Date().toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
         </div>
 
-        <div className="mb-8 p-8 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg shadow-lg">
-          <p className="text-xl opacity-90">Total de productos hoy</p>
-          <p className="text-6xl font-bold">{totalItems}</p>
-        </div>
-
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {estados.map(est => (
             <div
