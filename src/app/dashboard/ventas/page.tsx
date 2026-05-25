@@ -41,7 +41,8 @@ function VentasForm() {
   const [cotSearch, setCotSearch] = useState('')
 
   useEffect(() => {
-    supabase.from('clientes').select('*').order('nombre').then(({ data }) => setClientes(data || []))
+   const [clientes, setClientes] = useState<any[]>([])
+const [cotizaciones, setCotizaciones] = useState<any[]>([])
     supabase.from('cotizaciones').select('*, cotizacion_items(*)').order('created_at', { ascending: false }).then(({ data }) => setCotizaciones(data || []))
   }, [])
 
