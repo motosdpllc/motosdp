@@ -95,7 +95,13 @@ export default function ClientesPage() {
             </div>
             <div className="flex gap-2 flex-shrink-0">
               <button onClick={() => editar(selectedCli)} className="btn btn-sm bg-white/10 text-white border-white/20 hover:bg-white/20">Editar</button>
-              <button onClick={() => eliminar(selectedCli.id)} className="btn btn-sm bg-red-500/20 text-red-300 border-red-500/30">Eliminar</button>
+              <button onClick={() => <button
+  type="button"
+  onClick={() => eliminar(selectedCli.id)}
+  className="btn btn-sm bg-red-500/20 text-red-300 border-red-500/30"
+>
+  Eliminar
+</button>
             </div>
           </div>
         </div>
