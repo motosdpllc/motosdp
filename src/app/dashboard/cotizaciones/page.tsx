@@ -111,6 +111,7 @@ export default function CotizacionesPage() {
     partzilla: false,
     otra: false
   })
+  const [enviandoWhatsapp, setEnviandoWhatsapp] = useState(false)
 
   useEffect(() => {
     const cargar = async () => {
@@ -311,12 +312,20 @@ export default function CotizacionesPage() {
     setVista('editar')
   }
 
-  const guardarCotizacion = async (e: React.FormEvent) => {
+  const guardarCotizacion = async (e: React.FormEvent, enviarWhatsapp: boolean = false) => {
     e.preventDefault()
 
     if (!nro || !clienteNombre) {
       alert('⚠️ Número de cotización y cliente son requeridos')
       return
+    }
+
+    if (enviarWhatsapp) {
+      const clienteData = clientes.find(c => c.id === clienteId)
+      if (!clienteData?.telefono) {
+        alert('⚠️ El cliente no tiene teléfono registrado')
+        return
+      }
     }
 
     try {
@@ -391,15 +400,38 @@ export default function CotizacionesPage() {
       }
 
       alert('✅ Cotización guardada correctamente')
-      setVista('lista')
-      setEditId(null)
 
-      const { data: cots } = await supabase
-        .from('cotizaciones')
-        .select('*, cotizacion_items(*)')
-        .order('created_at', { ascending: false })
+      if (enviarWhatsapp) {
+        setEnviandoWhatsapp(true)
+        setTimeout(() => {
+          const clienteData = clientes.find(c => c.id === clienteId)
+          if (clienteData?.telefono) {
+            const mensaje = encodeURIComponent(
+              mensajeWhatsapp || `Hola ${clienteNombre}, te envío la cotización ${nro}`
+            )
+            window.open(`https://wa.me/${clienteData.telefono}?text=${mensaje}`, '_blank')
+          }
+          setEnviandoWhatsapp(false)
+          setVista('lista')
+          setEditId(null)
+          const { data: cots } = supabase
+            .from('cotizaciones')
+            .select('*, cotizacion_items(*)')
+            .order('created_at', { ascending: false })
+            .then(({ data: cots }) => {
+              if (cots) setCotizaciones(cots as Cotizacion[])
+            })
+        }, 500)
+      } else {
+        setVista('lista')
+        setEditId(null)
+        const { data: cots } = await supabase
+          .from('cotizaciones')
+          .select('*, cotizacion_items(*)')
+          .order('created_at', { ascending: false })
 
-      if (cots) setCotizaciones(cots as Cotizacion[])
+        if (cots) setCotizaciones(cots as Cotizacion[])
+      }
     } catch (err) {
       alert('❌ Error al guardar: ' + (err instanceof Error ? err.message : 'Error'))
     } finally {
@@ -468,86 +500,78 @@ export default function CotizacionesPage() {
       ? '<th style="border: 1px solid #ddd; padding: 8px;">Precio Unit.</th><th style="border: 1px solid #ddd; padding: 8px;">Subtotal</th>'
       : '<th style="border: 1px solid #ddd; padding: 8px;" colspan="2">Valor</th>'
 
-    const html = `
-      <html>
-        <head>
-          <meta charset="UTF-8" />
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
-            .header { margin-bottom: 20px; border-bottom: 2px solid #0066cc; padding-bottom: 10px; }
-            .header h1 { margin: 0; color: #0066cc; font-size: 24px; }
-            .header p { margin: 5px 0; font-size: 12px; color: #666; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th { background-color: #f0f0f0; font-weight: bold; text-align: left; border: 1px solid #ddd; padding: 8px; }
-            td { border: 1px solid #ddd; padding: 8px; }
-            .total-row { background-color: #f9f9f9; font-weight: bold; font-size: 14px; }
-            .final-price { background-color: #0066cc; color: white; font-size: 18px; font-weight: bold; padding: 15px; text-align: right; margin-top: 20px; border-radius: 5px; }
-            .pendientes { margin-top: 20px; padding: 10px; background-color: #fffacd; border-left: 4px solid #ffc107; }
-            .pendientes p { margin: 0; font-size: 12px; }
-            .footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 11px; color: #999; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>${nro}</h1>
-            <p><strong>Cliente:</strong> ${clienteNombre}</p>
-            <p><strong>Fecha:</strong> ${new Date(fecha).toLocaleDateString('es-AR')}</p>
-            ${vin ? `<p><strong>VIN:</strong> ${vin}</p>` : ''}
-          </div>
+    const printWindow = window.open('', '', 'height=600,width=800')
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <meta charset="UTF-8" />
+            <style>
+              body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
+              .header { margin-bottom: 20px; border-bottom: 2px solid #0066cc; padding-bottom: 10px; }
+              .header h1 { margin: 0; color: #0066cc; font-size: 24px; }
+              .header p { margin: 5px 0; font-size: 12px; color: #666; }
+              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+              th { background-color: #f0f0f0; font-weight: bold; text-align: left; border: 1px solid #ddd; padding: 8px; }
+              td { border: 1px solid #ddd; padding: 8px; }
+              .total-row { background-color: #f9f9f9; font-weight: bold; font-size: 14px; }
+              .final-price { background-color: #0066cc; color: white; font-size: 18px; font-weight: bold; padding: 15px; text-align: right; margin-top: 20px; border-radius: 5px; }
+              .pendientes { margin-top: 20px; padding: 10px; background-color: #fffacd; border-left: 4px solid #ffc107; }
+              .pendientes p { margin: 0; font-size: 12px; }
+              .footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 11px; color: #999; }
+              @media print { body { margin: 0; padding: 0; } }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>${nro}</h1>
+              <p><strong>Cliente:</strong> ${clienteNombre}</p>
+              <p><strong>Fecha:</strong> ${new Date(fecha).toLocaleDateString('es-AR')}</p>
+              ${vin ? `<p><strong>VIN:</strong> ${vin}</p>` : ''}
+            </div>
 
-          <table>
-            <thead>
-              <tr>
-                <th style="border: 1px solid #ddd; padding: 8px; width: 50px;">Cant</th>
-                <th style="border: 1px solid #ddd; padding: 8px; width: 80px;">Código</th>
-                <th style="border: 1px solid #ddd; padding: 8px;">Descripción</th>
-                ${encabezadoTabla}
-              </tr>
-            </thead>
-            <tbody>
-              ${filas}
-              ${mostrarPreciosIndividuales ? `
-                <tr class="total-row">
-                  <td colspan="3" style="border: 1px solid #ddd; padding: 8px; text-align: right;">SUBTOTAL:</td>
-                  <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">$${subtotal.toFixed(2)}</td>
-                  <td></td>
+            <table>
+              <thead>
+                <tr>
+                  <th style="border: 1px solid #ddd; padding: 8px; width: 50px;">Cant</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; width: 80px;">Código</th>
+                  <th style="border: 1px solid #ddd; padding: 8px;">Descripción</th>
+                  ${encabezadoTabla}
                 </tr>
-              ` : ''}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                ${filas}
+                ${mostrarPreciosIndividuales ? `
+                  <tr class="total-row">
+                    <td colspan="3" style="border: 1px solid #ddd; padding: 8px; text-align: right;">SUBTOTAL:</td>
+                    <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">$${subtotal.toFixed(2)}</td>
+                    <td></td>
+                  </tr>
+                ` : ''}
+              </tbody>
+            </table>
 
-          ${pendientes.length > 0 ? `
-            <div class="pendientes">
-              <p><strong>⏳ Pendiente de cotizar:</strong> ${pendientes.map(p => p.codigo).join(', ')}</p>
+            ${pendientes.length > 0 ? `
+              <div class="pendientes">
+                <p><strong>⏳ Pendiente de cotizar:</strong> ${pendientes.map(p => p.codigo).join(', ')}</p>
+              </div>
+            ` : ''}
+
+            ${precioFinal > 0 ? `
+              <div class="final-price">
+                PRECIO FINAL: $${precioFinal.toFixed(2)}
+              </div>
+            ` : ''}
+
+            <div class="footer">
+              <p>Cotización generada el ${new Date().toLocaleDateString('es-AR')} a las ${new Date().toLocaleTimeString('es-AR')}</p>
             </div>
-          ` : ''}
-
-          ${precioFinal > 0 ? `
-            <div class="final-price">
-              PRECIO FINAL: $${precioFinal.toFixed(2)}
-            </div>
-          ` : ''}
-
-          <div class="footer">
-            <p>Cotización generada el ${new Date().toLocaleDateString('es-AR')} a las ${new Date().toLocaleTimeString('es-AR')}</p>
-          </div>
-        </body>
-      </html>
-    `
-
-    // Guardar como HTML y luego convertir a PDF con window.print()
-    const blob = new Blob([html], { type: 'text/html' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `${nro}_${clienteNombre}.html`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-
-    alert('✅ PDF generado. Se abrirá en una nueva ventana para imprimir/guardar como PDF')
-    window.open(url, '_blank')
+          </body>
+        </html>
+      `)
+      printWindow.document.close()
+      setTimeout(() => printWindow.print(), 250)
+    }
   }
 
   const generarPDFProveedor = (proveedor: 'basoli' | 'partzilla' | 'otra') => {
@@ -584,68 +608,61 @@ export default function CotizacionesPage() {
       `
     })
 
-    const html = `
-      <html>
-        <head>
-          <meta charset="UTF-8" />
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
-            .header { margin-bottom: 20px; border-bottom: 2px solid #ff6b00; padding-bottom: 10px; }
-            .header h1 { margin: 0; color: #ff6b00; font-size: 24px; }
-            .header p { margin: 5px 0; font-size: 12px; color: #666; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th { background-color: #ffe6cc; font-weight: bold; text-align: left; border: 1px solid #ddd; padding: 8px; }
-            td { border: 1px solid #ddd; padding: 8px; }
-            .total-row { background-color: #fff3e0; font-weight: bold; font-size: 14px; }
-            .footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 11px; color: #999; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>📋 Pedido: ${nombreProveedor}</h1>
-            <p><strong>Cotización:</strong> ${nro}</p>
-            <p><strong>Cliente:</strong> ${clienteNombre}</p>
-            <p><strong>Fecha:</strong> ${new Date(fecha).toLocaleDateString('es-AR')}</p>
-          </div>
+    const printWindow = window.open('', '', 'height=600,width=800')
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <meta charset="UTF-8" />
+            <style>
+              body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
+              .header { margin-bottom: 20px; border-bottom: 2px solid #ff6b00; padding-bottom: 10px; }
+              .header h1 { margin: 0; color: #ff6b00; font-size: 24px; }
+              .header p { margin: 5px 0; font-size: 12px; color: #666; }
+              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+              th { background-color: #ffe6cc; font-weight: bold; text-align: left; border: 1px solid #ddd; padding: 8px; }
+              td { border: 1px solid #ddd; padding: 8px; }
+              .total-row { background-color: #fff3e0; font-weight: bold; font-size: 14px; }
+              .footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 11px; color: #999; }
+              @media print { body { margin: 0; padding: 0; } }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>📋 Pedido: ${nombreProveedor}</h1>
+              <p><strong>Cotización:</strong> ${nro}</p>
+              <p><strong>Cliente:</strong> ${clienteNombre}</p>
+              <p><strong>Fecha:</strong> ${new Date(fecha).toLocaleDateString('es-AR')}</p>
+            </div>
 
-          <table>
-            <thead>
-              <tr>
-                <th style="border: 1px solid #ddd; padding: 8px; width: 50px;">Cant</th>
-                <th style="border: 1px solid #ddd; padding: 8px; width: 80px;">Código</th>
-                <th style="border: 1px solid #ddd; padding: 8px;">Descripción</th>
-                <th style="border: 1px solid #ddd; padding: 8px; width: 100px;">Costo x 1.11</th>
-                <th style="border: 1px solid #ddd; padding: 8px; width: 100px;">Subtotal</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${filas}
-              <tr class="total-row">
-                <td colspan="4" style="border: 1px solid #ddd; padding: 8px; text-align: right;">TOTAL COSTO:</td>
-                <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">$${totalCosto.toFixed(2)}</td>
-              </tr>
-            </tbody>
-          </table>
+            <table>
+              <thead>
+                <tr>
+                  <th style="border: 1px solid #ddd; padding: 8px; width: 50px;">Cant</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; width: 80px;">Código</th>
+                  <th style="border: 1px solid #ddd; padding: 8px;">Descripción</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; width: 100px;">Costo x 1.11</th>
+                  <th style="border: 1px solid #ddd; padding: 8px; width: 100px;">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${filas}
+                <tr class="total-row">
+                  <td colspan="4" style="border: 1px solid #ddd; padding: 8px; text-align: right;">TOTAL COSTO:</td>
+                  <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">$${totalCosto.toFixed(2)}</td>
+                </tr>
+              </tbody>
+            </table>
 
-          <div class="footer">
-            <p>Pedido generado el ${new Date().toLocaleDateString('es-AR')} a las ${new Date().toLocaleTimeString('es-AR')}</p>
-          </div>
-        </body>
-      </html>
-    `
-
-    const blob = new Blob([html], { type: 'text/html' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `${nro}_${nombreProveedor}.html`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
-
-    alert('✅ PDF generado. Se abrirá en una nueva ventana para imprimir/guardar como PDF')
-    window.open(url, '_blank')
+            <div class="footer">
+              <p>Pedido generado el ${new Date().toLocaleDateString('es-AR')} a las ${new Date().toLocaleTimeString('es-AR')}</p>
+            </div>
+          </body>
+        </html>
+      `)
+      printWindow.document.close()
+      setTimeout(() => printWindow.print(), 250)
+    }
   }
 
   const abrirWhatsapp = (cot: Cotizacion) => {
@@ -770,7 +787,7 @@ export default function CotizacionesPage() {
           </button>
         </div>
 
-        <form onSubmit={guardarCotizacion}>
+        <form onSubmit={(e) => guardarCotizacion(e, false)}>
           <div className="bg-white p-6 rounded-lg shadow mb-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
@@ -869,7 +886,6 @@ export default function CotizacionesPage() {
               </div>
             </div>
 
-            {/* Opciones de PDF */}
             <div className="mt-4 p-4 bg-purple-50 rounded border border-purple-200">
               <h3 className="font-bold text-sm mb-3">🎨 Opciones de PDF</h3>
               <div className="space-y-2">
@@ -894,7 +910,6 @@ export default function CotizacionesPage() {
               </div>
             </div>
 
-            {/* Envío Programado */}
             <div className="mt-4 p-4 bg-blue-50 rounded border border-blue-200">
               <label className="flex items-center gap-2 mb-3">
                 <input
@@ -1181,7 +1196,7 @@ export default function CotizacionesPage() {
             </table>
           </div>
 
-          <div className="flex gap-3 justify-end mb-6">
+          <div className="flex gap-3 justify-end mb-6 flex-wrap">
             <button
               type="button"
               onClick={() => setVista('lista')}
@@ -1208,10 +1223,22 @@ export default function CotizacionesPage() {
 
             <button
               type="submit"
-              disabled={guardando}
+              disabled={guardando || enviandoWhatsapp}
               className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-semibold disabled:opacity-50"
             >
               {guardando ? 'Guardando...' : '✅ Guardar'}
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                guardarCotizacion(e, true)
+              }}
+              disabled={guardando || enviandoWhatsapp}
+              className="px-6 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 font-semibold disabled:opacity-50"
+            >
+              {enviandoWhatsapp ? '📤 Enviando...' : '💬 Guardar y Enviar WA'}
             </button>
           </div>
         </form>
