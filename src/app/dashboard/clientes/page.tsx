@@ -8,21 +8,27 @@ const PROVINCIAS = ['Buenos Aires','CABA','Catamarca','Chaco','Chubut','Córdoba
 const EMPTY = { nombre:'', telefono:'', direccion:'', codigo_postal:'', provincia:'', notas:'' }
 
 export default function ClientesPage() {
-  const [clientes, setClientes] = useState<any>([])
+  const [clientes, setClientes] = useState<any[]>([])
   const [form, setForm] = useState(EMPTY)
   const [editId, setEditId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [vista, setVista] = useState<'agenda' | 'form' | 'detalle'>('agenda')
   const [selectedCli, setSelectedCli] = useState<Cliente | null>(null)
-  const [itemsCli, setItemsCli] = useState<any>([])
-  const [cotsCli, setCotsCli] = useState<any>([])
+  const [itemsCli, setItemsCli] = useState<any[]>([])
+  const [cotsCli, setCotsCli] = useState<any[]>([])
   const [loadingDetalle, setLoadingDetalle] = useState(false)
 
   const load = async () => {
-    const { data } = await supabase.from('clientes').select('*').order('nombre')
-    setClientes(data || [])
-    setLoading(false)
+    try {
+      const { data } = await supabase.from('clientes').select('*').order('nombre')
+      setClientes(data || [])
+    } catch (error) {
+      toast.error('Error al cargar clientes.')
+      console.error(error)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { load() }, [])
@@ -37,7 +43,7 @@ export default function ClientesPage() {
         await supabase.from('clientes').insert([form])
         toast.success('Cliente creado')
       }
-      setForm(EMPTY); setEditId(null); setVista('agenda'); load()
+      setForm(EMPTY); setEditId(null); setVista('agenda'); await load()
     } catch (err) { toast.error('Error al guardar') }
   }
 
@@ -54,7 +60,7 @@ export default function ClientesPage() {
       toast.success('Cliente eliminado')
       setSelectedCli(null)
       setVista('agenda')
-      await load()
+      await load() // Recarga la lista después de eliminar
     } catch (err) { toast.error('Error al eliminar') }
   }
 
