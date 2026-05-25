@@ -1,7 +1,7 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase, fmt, type Item } from '@/lib/supabase'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import { X } from 'lucide-react'
 
@@ -17,8 +17,7 @@ interface VentaItem {
 
 function VentasForm() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const [clientes, setClientes] = useState([])
+  const [clientes, setClientes] = useState<any>([])
   const [cliSearch, setCliSearch] = useState('')
   const [showCliDrop, setShowCliDrop] = useState(false)
   const [clienteId, setClienteId] = useState('')
@@ -29,24 +28,24 @@ function VentasForm() {
   const [estadoPago, setEstadoPago] = useState('')
   const [ventaItems, setVentaItems] = useState<VentaItem[]>([])
   const [itemSearch, setItemSearch] = useState('')
-  const [itemResults, setItemResults] = useState([])
+  const [itemResults, setItemResults] = useState<any>([])
   const [showItemDrop, setShowItemDrop] = useState(false)
   const [rprod, setRprod] = useState('')
   const [rcosto, setRcosto] = useState('')
   const [rprecio, setRprecio] = useState('')
   const [roem, setRoem] = useState('')
   const [saving, setSaving] = useState(false)
-  const [cotizaciones, setCotizaciones] = useState([])
+  const [cotizaciones, setCotizaciones] = useState<any>([])
   const [showCotDrop, setShowCotDrop] = useState(false)
   const [cotSearch, setCotSearch] = useState('')
 
-const [clientes, setClientes] = useState<any>([])
-const [cotizaciones, setCotizaciones] = useState<any>([])
+  useEffect(() => {
+    supabase.from('clientes').select('*').order('nombre').then(({ data }) => setClientes(data || []))
     supabase.from('cotizaciones').select('*, cotizacion_items(*)').order('created_at', { ascending: false }).then(({ data }) => setCotizaciones(data || []))
   }, [])
 
-  const filtCli = clientes.filter(c => cliSearch && c.nombre.toLowerCase().includes(cliSearch.toLowerCase())).slice(0, 6)
-  const filtCot = cotizaciones.filter(c =>
+  const filtCli = clientes.filter((c: any) => cliSearch && c.nombre.toLowerCase().includes(cliSearch.toLowerCase())).slice(0, 6)
+  const filtCot = cotizaciones.filter((c: any) =>
     !cotSearch || (c.nro || '').toLowerCase().includes(cotSearch.toLowerCase()) || (c.cliente_nombre || '').toLowerCase().includes(cotSearch.toLowerCase())
   ).slice(0, 6)
 
@@ -79,7 +78,7 @@ const [cotizaciones, setCotizaciones] = useState<any>([])
       .not('ubicacion', 'eq', 'Vendido').not('ubicacion', 'eq', 'Cancelado')
       .or(`producto.ilike.%${q}%,oem.ilike.%${q}%,codigo.ilike.%${q}%,nro_orden.ilike.%${q}%`)
       .limit(8)
-    setItemResults((data || []).filter(x => !ventaItems.find(v => v.id === x.id)))
+    setItemResults((data || []).filter((x: any) => !ventaItems.find(v => v.id === x.id)))
     setShowItemDrop(true)
   }
 
@@ -131,7 +130,6 @@ const [cotizaciones, setCotizaciones] = useState<any>([])
     <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow">
       <h1 className="text-3xl font-bold mb-8">Nueva venta</h1>
 
-      {/* Cargar desde cotización */}
       <div className="bg-blue-50 p-6 rounded-lg mb-8">
         <h2 className="text-lg font-bold mb-4">📋 Cargar desde cotización</h2>
         <div className="relative">
@@ -145,7 +143,7 @@ const [cotizaciones, setCotizaciones] = useState<any>([])
           />
           {showCotDrop && filtCot.length > 0 && (
             <div className="absolute top-full left-0 right-0 bg-white border rounded mt-1 shadow-lg z-10 max-h-48 overflow-y-auto">
-              {filtCot.map(c => (
+              {filtCot.map((c: any) => (
                 <button
                   key={c.id}
                   type="button"
@@ -161,7 +159,6 @@ const [cotizaciones, setCotizaciones] = useState<any>([])
         </div>
       </div>
 
-      {/* Datos */}
       <div className="bg-gray-50 p-6 rounded-lg mb-8">
         <h2 className="text-lg font-bold mb-4">Datos de la venta</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -178,7 +175,7 @@ const [cotizaciones, setCotizaciones] = useState<any>([])
               />
               {showCliDrop && filtCli.length > 0 && (
                 <div className="absolute top-full left-0 right-0 bg-white border rounded mt-1 shadow-lg z-10 max-h-48 overflow-y-auto">
-                  {filtCli.map(c => (
+                  {filtCli.map((c: any) => (
                     <button
                       key={c.id}
                       type="button"
@@ -227,7 +224,6 @@ const [cotizaciones, setCotizaciones] = useState<any>([])
         </div>
       </div>
 
-      {/* Items */}
       <div className="bg-gray-50 p-6 rounded-lg mb-8">
         <h2 className="text-lg font-bold mb-4">Ítems de esta venta</h2>
 
@@ -242,7 +238,7 @@ const [cotizaciones, setCotizaciones] = useState<any>([])
           />
           {showItemDrop && itemResults.length > 0 && (
             <div className="absolute top-full left-0 right-0 bg-white border rounded mt-1 shadow-lg z-10 max-h-48 overflow-y-auto">
-              {itemResults.map(x => (
+              {itemResults.map((x: any) => (
                 <button
                   key={x.id}
                   type="button"
@@ -306,7 +302,6 @@ const [cotizaciones, setCotizaciones] = useState<any>([])
         )}
       </div>
 
-      {/* Ítem rápido */}
       <div className="bg-yellow-50 p-6 rounded-lg mb-8">
         <h2 className="text-lg font-bold mb-4">Ítem rápido (no está en el inventario)</h2>
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 items-end">
@@ -330,7 +325,6 @@ const [cotizaciones, setCotizaciones] = useState<any>([])
         </div>
       </div>
 
-      {/* Totales */}
       <div className="bg-gray-50 p-6 rounded-lg mb-8">
         <div className="grid grid-cols-3 gap-4 text-center">
           <div>
@@ -350,7 +344,6 @@ const [cotizaciones, setCotizaciones] = useState<any>([])
         </div>
       </div>
 
-      {/* Botones */}
       <div className="flex gap-4 justify-end">
         <button type="button" onClick={() => router.push('/dashboard')} className="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">Cancelar</button>
         <button
