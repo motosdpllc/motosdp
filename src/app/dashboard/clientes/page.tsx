@@ -61,15 +61,16 @@ export default function ClientesPage() {
   }
 
   const eliminar = async (id: string) => {
-    if (!confirm('¿Eliminar este cliente?')) return
-    try {
-      await supabase.from('clientes').delete().eq('id', id)
-      toast.success('Cliente eliminado')
-      setVista('agenda')
-      load()
-    } catch (err) {
-      toast.error('Error al eliminar')
-    }
+  if (!confirm('¿Eliminar este cliente?')) return
+  try {
+    await supabase.from('clientes').delete().eq('id', id)
+    toast.success('Cliente eliminado')
+    setSelectedCli(null)
+    setVista('agenda')
+    await load()
+  } catch (err) {
+    toast.error('Error al eliminar')
+  }}
   }
 
   const verDetalle = async (c: Cliente) => {
