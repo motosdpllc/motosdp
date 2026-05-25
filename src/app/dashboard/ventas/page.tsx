@@ -17,7 +17,7 @@ interface VentaItem {
 
 function VentasForm() {
   const router = useRouter()
-  const [clientes, setClientes] = useState<any>([])
+  const [clientes, setClientes] = useState<any[]>([])
   const [cliSearch, setCliSearch] = useState('')
   const [showCliDrop, setShowCliDrop] = useState(false)
   const [clienteId, setClienteId] = useState('')
@@ -28,14 +28,14 @@ function VentasForm() {
   const [estadoPago, setEstadoPago] = useState('')
   const [ventaItems, setVentaItems] = useState<VentaItem[]>([])
   const [itemSearch, setItemSearch] = useState('')
-  const [itemResults, setItemResults] = useState<any>([])
+  const [itemResults, setItemResults] = useState<any[]>([])
   const [showItemDrop, setShowItemDrop] = useState(false)
   const [rprod, setRprod] = useState('')
   const [rcosto, setRcosto] = useState('')
   const [rprecio, setRprecio] = useState('')
   const [roem, setRoem] = useState('')
   const [saving, setSaving] = useState(false)
-  const [cotizaciones, setCotizaciones] = useState<any>([])
+  const [cotizaciones, setCotizaciones] = useState<any[]>([])
   const [showCotDrop, setShowCotDrop] = useState(false)
   const [cotSearch, setCotSearch] = useState('')
 
@@ -61,8 +61,9 @@ function VentasForm() {
       id: 'cot_' + it.id + '_' + Date.now(),
       producto: it.descripcion || '',
       codigo: it.codigo || '',
-      costoTotal: it.subtotal || 0,
-      precio: it.precio_venta || it.subtotal || 0,
+      // Aseguramos que el costo total de la cotización se pase aquí
+      costoTotal: it.basoli > 0 ? it.basoli : (it.partzilla > 0 ? it.partzilla : it.otra), // Usa el costo del proveedor elegido
+      precio: it.precio_venta || 0,
       tipo: 'cotizacion' as const
     }))
     setVentaItems(items)
@@ -114,7 +115,8 @@ function VentasForm() {
       } else {
         await supabase.from('items').insert({
           producto: vi.producto, oem: vi.oem || null, codigo: vi.codigo || null,
-          costo_total: vi.costoTotal, precio_venta: vi.precio, ganancia: vi.precio - vi.costoTotal,
+          costo_total: vi.costoTotal, // AQUI SE GUARDA EL COSTO
+          precio_venta: vi.precio, ganancia: vi.precio - vi.costoTotal,
           cliente_id: clienteId || null, cliente_nombre: clienteNombre || null,
           nro_venta: nro, estado_pago: estadoPago || null, fecha_venta: fecha,
           ubicacion: 'Vendido',
