@@ -2,10 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { supabase, fmtDate, fmt, getNextCounter } from '@/lib/supabase'
-let html2pdf: any = null
-if (typeof window !== 'undefined') {
-  html2pdf = require('html2pdf.js')
-}
 
 const MULTIPLICADOR = 1.11
 
@@ -38,6 +34,8 @@ interface Cotizacion {
   hora_programada?: string
   enviar_automatico?: boolean
   mensaje_whatsapp?: string
+  mostrar_links?: boolean
+  mostrar_precios_individuales?: boolean
   cotizacion_items?: CotizacionItem[]
 }
 
@@ -61,7 +59,6 @@ const ITEM_VACIO: CotizacionItem = {
   proveedor_otro_link: ''
 }
 
-// Función para elegir mejor proveedor automáticamente
 const elegirMejorProveedor = (item: CotizacionItem): 'basoli' | 'partzilla' | 'otra' | null => {
   const proveedores = [
     { nombre: 'basoli', precio: item.basoli },
@@ -69,12 +66,10 @@ const elegirMejorProveedor = (item: CotizacionItem): 'basoli' | 'partzilla' | 'o
     { nombre: 'otra', precio: item.otra }
   ]
 
-  // Filtrar los que tienen precio > 0
   const conPrecio = proveedores.filter(p => p.precio > 0)
 
   if (conPrecio.length === 0) return null
 
-  // Retornar el más barato
   const mejorProveedor = conPrecio.reduce((prev, current) =>
     prev.precio < current.precio ? prev : current
   )
@@ -90,7 +85,6 @@ export default function CotizacionesPage() {
   const [guardando, setGuardando] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
 
-  // Estado del formulario
   const [nro, setNro] = useState('')
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0])
   const [clienteId, setClienteId] = useState('')
@@ -102,18 +96,15 @@ export default function CotizacionesPage() {
   const [horaEnvioProgramado, setHoraEnvioProgramado] = useState('')
   const [enviarAutomatico, setEnviarAutomatico] = useState(false)
   const [mensajeWhatsapp, setMensajeWhatsapp] = useState('')
+  const [mostrarLinks, setMostrarLinks] = useState(false)
+  const [mostrarPreciosIndividuales, setMostrarPreciosIndividuales] = useState(true)
 
-  // Items y pegado masivo
   const [items, setItems] = useState<CotizacionItem[]>(Array(30).fill(null).map(() => ({ ...ITEM_VACIO })))
   const [rawText, setRawText] = useState('')
   const [busquedaCliente, setBusquedaCliente] = useState('')
   const [clientesFiltrados, setClientesFiltrados] = useState<Cliente[]>([])
   const [mostrarListaClientes, setMostrarListaClientes] = useState(false)
-
-  // Panel lateral
   const [itemActivoIndex, setItemActivoIndex] = useState<number | null>(null)
-
-  // Modal de proveedores para PDF
   const [mostrarModalProveedores, setMostrarModalProveedores] = useState(false)
   const [proveedoresSeleccionados, setProveedoresSeleccionados] = useState({
     basoli: false,
@@ -121,7 +112,6 @@ export default function CotizacionesPage() {
     otra: false
   })
 
-  // Cargar datos iniciales
   useEffect(() => {
     const cargar = async () => {
       try {
@@ -147,7 +137,6 @@ export default function CotizacionesPage() {
     cargar()
   }, [])
 
-  // Buscar clientes
   const handleBusquedaCliente = (valor: string) => {
     setBusquedaCliente(valor)
     if (valor.trim()) {
@@ -169,7 +158,6 @@ export default function CotizacionesPage() {
     setMostrarListaClientes(false)
   }
 
-  // Procesar pegado masivo
   const procesarPegadoMasivo = () => {
     if (!rawText.trim()) {
       alert('Pegá datos primero')
@@ -198,13 +186,10 @@ export default function CotizacionesPage() {
           proveedor_otro_link: ''
         }
 
-        // Elegir mejor proveedor automáticamente
         nuevoItem.proveedor_elegido = elegirMejorProveedor(nuevoItem)
-
         nuevosItems.push(nuevoItem)
       })
 
-      // Llenar hasta 30 filas
       while (nuevosItems.length < 30) {
         nuevosItems.push({ ...ITEM_VACIO })
       }
@@ -217,7 +202,6 @@ export default function CotizacionesPage() {
     }
   }
 
-  // Actualizar item
   const actualizarItem = (index: number, campo: keyof CotizacionItem, valor: any) => {
     const nuevoItems = [...items]
     if (['peso_estimado', 'basoli', 'partzilla', 'otra', 'precio_venta'].includes(campo)) {
@@ -230,7 +214,6 @@ export default function CotizacionesPage() {
     setItems(nuevoItems)
   }
 
-  // Calcular costo con recargo
   const calcularCostoConRecargo = (item: CotizacionItem): number => {
     let costo = 0
     if (item.proveedor_elegido === 'basoli') costo = item.basoli
@@ -239,14 +222,12 @@ export default function CotizacionesPage() {
     return parseFloat((costo * MULTIPLICADOR).toFixed(2))
   }
 
-  // Validar si el precio es menor al costo
   const esVentaMenor = (item: CotizacionItem): boolean => {
     if (!item.proveedor_elegido || item.cantidad === 0) return false
     const costoConRecargo = calcularCostoConRecargo(item)
     return item.precio_venta > 0 && item.precio_venta < costoConRecargo
   }
 
-  // Ordenar items por proveedor (visual solo)
   const itemsOrdenados = () => {
     const activos = items.filter(i => (i.codigo.trim() !== '' || i.descripcion.trim() !== '') && i.cantidad > 0)
     const pendientes = items.filter(i => (i.codigo.trim() !== '' || i.descripcion.trim() !== '') && i.cantidad === 0)
@@ -261,7 +242,6 @@ export default function CotizacionesPage() {
     return { ...porProveedor, pendientes }
   }
 
-  // Nueva cotización
   const nuevaCotizacion = async () => {
     try {
       const contador = await getNextCounter('cot')
@@ -277,6 +257,8 @@ export default function CotizacionesPage() {
       setHoraEnvioProgramado('')
       setEnviarAutomatico(false)
       setMensajeWhatsapp('')
+      setMostrarLinks(false)
+      setMostrarPreciosIndividuales(true)
       setItems(Array(30).fill(null).map(() => ({ ...ITEM_VACIO })))
       setItemActivoIndex(null)
       setEditId(null)
@@ -286,7 +268,6 @@ export default function CotizacionesPage() {
     }
   }
 
-  // Editar cotización
   const editarCotizacion = (cot: Cotizacion) => {
     setEditId(cot.id)
     setNro(cot.nro)
@@ -301,6 +282,8 @@ export default function CotizacionesPage() {
     setHoraEnvioProgramado(cot.hora_programada || '')
     setEnviarAutomatico(cot.enviar_automatico || false)
     setMensajeWhatsapp(cot.mensaje_whatsapp || '')
+    setMostrarLinks(cot.mostrar_links || false)
+    setMostrarPreciosIndividuales(cot.mostrar_precios_individuales !== false)
 
     const itemsCargados = (cot.cotizacion_items || []).map(i => ({
       ...i,
@@ -328,7 +311,6 @@ export default function CotizacionesPage() {
     setVista('editar')
   }
 
-  // Guardar cotización
   const guardarCotizacion = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -351,7 +333,9 @@ export default function CotizacionesPage() {
         fecha_envio_programado: fechaEnvioProgramado || null,
         hora_programada: horaEnvioProgramado || null,
         enviar_automatico: enviarAutomatico,
-        mensaje_whatsapp: mensajeWhatsapp || null
+        mensaje_whatsapp: mensajeWhatsapp || null,
+        mostrar_links: mostrarLinks,
+        mostrar_precios_individuales: mostrarPreciosIndividuales
       }
 
       let cotizacionId = editId
@@ -423,7 +407,6 @@ export default function CotizacionesPage() {
     }
   }
 
-  // Eliminar cotización
   const eliminarCotizacion = async (id: string) => {
     if (!confirm('¿Estás seguro de que querés eliminar esta cotización?')) return
 
@@ -448,61 +431,125 @@ export default function CotizacionesPage() {
     }
   }
 
-  // Generar PDF para cliente
   const generarPDFCliente = () => {
     const { basoli, partzilla, otra, pendientes } = itemsOrdenados()
     const todosActivos = [...basoli, ...partzilla, ...otra]
 
+    let filas = ''
+    let subtotal = 0
+
+    todosActivos.forEach(item => {
+      const total = item.precio_venta * item.cantidad
+      subtotal += total
+
+      const linkHTML = mostrarLinks && item.proveedor_otro_link
+        ? `<br/><a href="${item.proveedor_otro_link}" style="color: #0066cc; font-size: 11px;">🔗 Ver producto</a>`
+        : ''
+
+      const precioHTML = mostrarPreciosIndividuales
+        ? `<td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">$${item.precio_venta.toFixed(2)}</td>
+           <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">$${total.toFixed(2)}</td>`
+        : `<td colspan="2" style="border: 1px solid #ddd; padding: 8px; text-align: center; font-weight: bold; color: #0066cc;">Incluido</td>`
+
+      filas += `
+        <tr>
+          <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${item.cantidad}</td>
+          <td style="border: 1px solid #ddd; padding: 8px;">${item.codigo}</td>
+          <td style="border: 1px solid #ddd; padding: 8px;">
+            ${item.descripcion}
+            ${linkHTML}
+          </td>
+          ${precioHTML}
+        </tr>
+      `
+    })
+
+    const encabezadoTabla = mostrarPreciosIndividuales
+      ? '<th style="border: 1px solid #ddd; padding: 8px;">Precio Unit.</th><th style="border: 1px solid #ddd; padding: 8px;">Subtotal</th>'
+      : '<th style="border: 1px solid #ddd; padding: 8px;" colspan="2">Valor</th>'
+
     const html = `
-      <div style="font-family: Arial, sans-serif; padding: 20px;">
-        <h1>${nro}</h1>
-        <p><strong>Cliente:</strong> ${clienteNombre}</p>
-        <p><strong>Fecha:</strong> ${new Date(fecha).toLocaleDateString('es-AR')}</p>
-        ${vin ? `<p><strong>VIN:</strong> ${vin}</p>` : ''}
-        
-        <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
-          <thead>
-            <tr style="background-color: #f0f0f0;">
-              <th style="border: 1px solid #000; padding: 8px; text-align: left;">Cant</th>
-              <th style="border: 1px solid #000; padding: 8px; text-align: left;">Código</th>
-              <th style="border: 1px solid #000; padding: 8px; text-align: left;">Descripción</th>
-              <th style="border: 1px solid #000; padding: 8px; text-align: right;">Precio Venta</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${todosActivos.map(item => `
-              <tr>
-                <td style="border: 1px solid #000; padding: 8px;">${item.cantidad}</td>
-                <td style="border: 1px solid #000; padding: 8px;">${item.codigo}</td>
-                <td style="border: 1px solid #000; padding: 8px;">${item.descripcion}</td>
-                <td style="border: 1px solid #000; padding: 8px; text-align: right;">$${item.precio_venta.toFixed(2)}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-
-        ${pendientes.length > 0 ? `
-          <div style="margin-top: 20px;">
-            <p><strong>Pendiente de cotización:</strong> ${pendientes.map(p => p.codigo).join(', ')}</p>
+      <html>
+        <head>
+          <meta charset="UTF-8" />
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
+            .header { margin-bottom: 20px; border-bottom: 2px solid #0066cc; padding-bottom: 10px; }
+            .header h1 { margin: 0; color: #0066cc; font-size: 24px; }
+            .header p { margin: 5px 0; font-size: 12px; color: #666; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { background-color: #f0f0f0; font-weight: bold; text-align: left; border: 1px solid #ddd; padding: 8px; }
+            td { border: 1px solid #ddd; padding: 8px; }
+            .total-row { background-color: #f9f9f9; font-weight: bold; font-size: 14px; }
+            .final-price { background-color: #0066cc; color: white; font-size: 18px; font-weight: bold; padding: 15px; text-align: right; margin-top: 20px; border-radius: 5px; }
+            .pendientes { margin-top: 20px; padding: 10px; background-color: #fffacd; border-left: 4px solid #ffc107; }
+            .pendientes p { margin: 0; font-size: 12px; }
+            .footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 11px; color: #999; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>${nro}</h1>
+            <p><strong>Cliente:</strong> ${clienteNombre}</p>
+            <p><strong>Fecha:</strong> ${new Date(fecha).toLocaleDateString('es-AR')}</p>
+            ${vin ? `<p><strong>VIN:</strong> ${vin}</p>` : ''}
           </div>
-        ` : ''}
 
-        ${precioFinal > 0 ? `<p style="margin-top: 20px; font-size: 16px;"><strong>PRECIO FINAL: $${precioFinal.toFixed(2)}</strong></p>` : ''}
-      </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="border: 1px solid #ddd; padding: 8px; width: 50px;">Cant</th>
+                <th style="border: 1px solid #ddd; padding: 8px; width: 80px;">Código</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Descripción</th>
+                ${encabezadoTabla}
+              </tr>
+            </thead>
+            <tbody>
+              ${filas}
+              ${mostrarPreciosIndividuales ? `
+                <tr class="total-row">
+                  <td colspan="3" style="border: 1px solid #ddd; padding: 8px; text-align: right;">SUBTOTAL:</td>
+                  <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">$${subtotal.toFixed(2)}</td>
+                  <td></td>
+                </tr>
+              ` : ''}
+            </tbody>
+          </table>
+
+          ${pendientes.length > 0 ? `
+            <div class="pendientes">
+              <p><strong>⏳ Pendiente de cotizar:</strong> ${pendientes.map(p => p.codigo).join(', ')}</p>
+            </div>
+          ` : ''}
+
+          ${precioFinal > 0 ? `
+            <div class="final-price">
+              PRECIO FINAL: $${precioFinal.toFixed(2)}
+            </div>
+          ` : ''}
+
+          <div class="footer">
+            <p>Cotización generada el ${new Date().toLocaleDateString('es-AR')} a las ${new Date().toLocaleTimeString('es-AR')}</p>
+          </div>
+        </body>
+      </html>
     `
 
-    const opt = {
-      margin: 10,
-      filename: `${nro}_${clienteNombre}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2 },
-      jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
-    }
+    // Guardar como HTML y luego convertir a PDF con window.print()
+    const blob = new Blob([html], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${nro}_${clienteNombre}.html`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
 
-    html2pdf().set(opt).from(html).save()
+    alert('✅ PDF generado. Se abrirá en una nueva ventana para imprimir/guardar como PDF')
+    window.open(url, '_blank')
   }
 
-  // Generar PDF por proveedor
   const generarPDFProveedor = (proveedor: 'basoli' | 'partzilla' | 'otra') => {
     const { basoli, partzilla, otra } = itemsOrdenados()
     const items = proveedor === 'basoli' ? basoli : proveedor === 'partzilla' ? partzilla : otra
@@ -514,55 +561,93 @@ export default function CotizacionesPage() {
 
     const nombreProveedor = proveedor === 'basoli' ? 'BÁSOLI' : proveedor === 'partzilla' ? 'PARTZILLA' : 'OTROS PROVEEDORES'
 
+    let filas = ''
+    let totalCosto = 0
+
+    items.forEach(item => {
+      const costo = (
+        proveedor === 'basoli' ? item.basoli :
+        proveedor === 'partzilla' ? item.partzilla :
+        item.otra
+      ) * MULTIPLICADOR
+      const total = costo * item.cantidad
+      totalCosto += total
+
+      filas += `
+        <tr>
+          <td style="border: 1px solid #ddd; padding: 8px; text-align: center;">${item.cantidad}</td>
+          <td style="border: 1px solid #ddd; padding: 8px;">${item.codigo}</td>
+          <td style="border: 1px solid #ddd; padding: 8px;">${item.descripcion}</td>
+          <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">$${costo.toFixed(2)}</td>
+          <td style="border: 1px solid #ddd; padding: 8px; text-align: right; font-weight: bold;">$${total.toFixed(2)}</td>
+        </tr>
+      `
+    })
+
     const html = `
-      <div style="font-family: Arial, sans-serif; padding: 20px;">
-        <h1>Pedido: ${nombreProveedor}</h1>
-        <p><strong>Cotización:</strong> ${nro}</p>
-        <p><strong>Cliente:</strong> ${clienteNombre}</p>
-        <p><strong>Fecha:</strong> ${new Date(fecha).toLocaleDateString('es-AR')}</p>
-        
-        <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
-          <thead>
-            <tr style="background-color: #f0f0f0;">
-              <th style="border: 1px solid #000; padding: 8px; text-align: center;">Cant</th>
-              <th style="border: 1px solid #000; padding: 8px; text-align: left;">Código</th>
-              <th style="border: 1px solid #000; padding: 8px; text-align: left;">Descripción</th>
-              <th style="border: 1px solid #000; padding: 8px; text-align: right;">Costo x 1.11</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${items.map(item => {
-              const costoConRecargo = (
-                proveedor === 'basoli' ? item.basoli :
-                proveedor === 'partzilla' ? item.partzilla :
-                item.otra
-              ) * MULTIPLICADOR
-              return `
-                <tr>
-                  <td style="border: 1px solid #000; padding: 8px; text-align: center;">${item.cantidad}</td>
-                  <td style="border: 1px solid #000; padding: 8px;">${item.codigo}</td>
-                  <td style="border: 1px solid #000; padding: 8px;">${item.descripcion}</td>
-                  <td style="border: 1px solid #000; padding: 8px; text-align: right;">$${costoConRecargo.toFixed(2)}</td>
-                </tr>
-              `
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
+      <html>
+        <head>
+          <meta charset="UTF-8" />
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
+            .header { margin-bottom: 20px; border-bottom: 2px solid #ff6b00; padding-bottom: 10px; }
+            .header h1 { margin: 0; color: #ff6b00; font-size: 24px; }
+            .header p { margin: 5px 0; font-size: 12px; color: #666; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { background-color: #ffe6cc; font-weight: bold; text-align: left; border: 1px solid #ddd; padding: 8px; }
+            td { border: 1px solid #ddd; padding: 8px; }
+            .total-row { background-color: #fff3e0; font-weight: bold; font-size: 14px; }
+            .footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 11px; color: #999; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>📋 Pedido: ${nombreProveedor}</h1>
+            <p><strong>Cotización:</strong> ${nro}</p>
+            <p><strong>Cliente:</strong> ${clienteNombre}</p>
+            <p><strong>Fecha:</strong> ${new Date(fecha).toLocaleDateString('es-AR')}</p>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th style="border: 1px solid #ddd; padding: 8px; width: 50px;">Cant</th>
+                <th style="border: 1px solid #ddd; padding: 8px; width: 80px;">Código</th>
+                <th style="border: 1px solid #ddd; padding: 8px;">Descripción</th>
+                <th style="border: 1px solid #ddd; padding: 8px; width: 100px;">Costo x 1.11</th>
+                <th style="border: 1px solid #ddd; padding: 8px; width: 100px;">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filas}
+              <tr class="total-row">
+                <td colspan="4" style="border: 1px solid #ddd; padding: 8px; text-align: right;">TOTAL COSTO:</td>
+                <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">$${totalCosto.toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="footer">
+            <p>Pedido generado el ${new Date().toLocaleDateString('es-AR')} a las ${new Date().toLocaleTimeString('es-AR')}</p>
+          </div>
+        </body>
+      </html>
     `
 
-    const opt = {
-      margin: 10,
-      filename: `${nro}_${nombreProveedor}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2 },
-      jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
-    }
+    const blob = new Blob([html], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${nro}_${nombreProveedor}.html`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
 
-    html2pdf().set(opt).from(html).save()
+    alert('✅ PDF generado. Se abrirá en una nueva ventana para imprimir/guardar como PDF')
+    window.open(url, '_blank')
   }
 
-  // Abrir WhatsApp
   const abrirWhatsapp = (cot: Cotizacion) => {
     const cliente = clientes.find(c => c.id === cot.cliente_id)
     if (!cliente?.telefono) {
@@ -584,7 +669,6 @@ export default function CotizacionesPage() {
     )
   }
 
-  // VISTA LISTA
   if (vista === 'lista') {
     return (
       <div className="min-h-screen bg-gray-50 p-6">
@@ -622,7 +706,7 @@ export default function CotizacionesPage() {
                     const ahora = new Date()
                     const fechaEnvio = cot.fecha_envio_programado ? new Date(cot.fecha_envio_programado) : null
                     const debioEnviar = cot.enviar_automatico && fechaEnvio && fechaEnvio <= ahora
-                    
+
                     return (
                       <tr key={cot.id} className={`border-b hover:bg-gray-50 ${debioEnviar ? 'bg-yellow-50' : ''}`}>
                         <td className="px-6 py-3 font-semibold">{cot.nro}</td>
@@ -669,7 +753,6 @@ export default function CotizacionesPage() {
     )
   }
 
-  // VISTA EDITAR
   const ordenados = itemsOrdenados()
 
   return (
@@ -688,7 +771,6 @@ export default function CotizacionesPage() {
         </div>
 
         <form onSubmit={guardarCotizacion}>
-          {/* ENCABEZADO */}
           <div className="bg-white p-6 rounded-lg shadow mb-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
@@ -736,7 +818,6 @@ export default function CotizacionesPage() {
               </div>
             </div>
 
-            {/* Cliente */}
             <div className="mt-4 relative">
               <label className="block text-sm font-bold mb-1">Cliente</label>
               <input
@@ -788,6 +869,31 @@ export default function CotizacionesPage() {
               </div>
             </div>
 
+            {/* Opciones de PDF */}
+            <div className="mt-4 p-4 bg-purple-50 rounded border border-purple-200">
+              <h3 className="font-bold text-sm mb-3">🎨 Opciones de PDF</h3>
+              <div className="space-y-2">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={mostrarLinks}
+                    onChange={e => setMostrarLinks(e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm">Mostrar links de productos al cliente</span>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={mostrarPreciosIndividuales}
+                    onChange={e => setMostrarPreciosIndividuales(e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-sm">Mostrar precios individuales (si no: muestra "Incluido")</span>
+                </label>
+              </div>
+            </div>
+
             {/* Envío Programado */}
             <div className="mt-4 p-4 bg-blue-50 rounded border border-blue-200">
               <label className="flex items-center gap-2 mb-3">
@@ -825,7 +931,6 @@ export default function CotizacionesPage() {
             </div>
           </div>
 
-          {/* PEGADO MASIVO */}
           <div className="bg-white p-6 rounded-lg shadow mb-6">
             <h2 className="text-lg font-bold mb-3">📋 Pegado Masivo (TSV)</h2>
             <textarea
@@ -845,13 +950,11 @@ export default function CotizacionesPage() {
             </button>
           </div>
 
-          {/* TABLA DE ITEMS ORDENADOS POR PROVEEDOR */}
           <div className="bg-white rounded-lg shadow overflow-x-auto mb-6">
             <div className="p-4 border-b bg-gray-50">
               <h2 className="text-lg font-bold">Items Activos (Ordenados por Proveedor)</h2>
             </div>
 
-            {/* BÁSOLI */}
             {ordenados.basoli.length > 0 && (
               <div className="p-4 border-b">
                 <h3 className="font-bold text-blue-600 mb-3">🏭 BÁSOLI ({ordenados.basoli.length})</h3>
@@ -880,7 +983,6 @@ export default function CotizacionesPage() {
               </div>
             )}
 
-            {/* PARTZILLA */}
             {ordenados.partzilla.length > 0 && (
               <div className="p-4 border-b">
                 <h3 className="font-bold text-orange-600 mb-3">🔧 PARTZILLA ({ordenados.partzilla.length})</h3>
@@ -909,7 +1011,6 @@ export default function CotizacionesPage() {
               </div>
             )}
 
-            {/* OTRAS PROVEEDORES */}
             {ordenados.otra.length > 0 && (
               <div className="p-4 border-b">
                 <h3 className="font-bold text-purple-600 mb-3">🌐 OTROS PROVEEDORES ({ordenados.otra.length})</h3>
@@ -948,7 +1049,6 @@ export default function CotizacionesPage() {
               </div>
             )}
 
-            {/* PENDIENTES */}
             {ordenados.pendientes.length > 0 && (
               <div className="p-4 bg-yellow-50">
                 <p className="font-bold text-yellow-800">
@@ -958,7 +1058,6 @@ export default function CotizacionesPage() {
             )}
           </div>
 
-          {/* TABLA EDITABLE ORIGINAL (OCULTA PERO FUNCIONAL) */}
           <div className="bg-white rounded-lg shadow overflow-x-auto mb-6">
             <div className="p-4 border-b bg-gray-50">
               <h2 className="text-lg font-bold">Editar Items (Todos)</h2>
@@ -1082,7 +1181,6 @@ export default function CotizacionesPage() {
             </table>
           </div>
 
-          {/* BOTONES DE ACCIÓN */}
           <div className="flex gap-3 justify-end mb-6">
             <button
               type="button"
@@ -1118,7 +1216,6 @@ export default function CotizacionesPage() {
           </div>
         </form>
 
-        {/* MODAL PARA SELECCIONAR PROVEEDORES */}
         {mostrarModalProveedores && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 max-w-md w-full">
@@ -1131,6 +1228,7 @@ export default function CotizacionesPage() {
                     checked={proveedoresSeleccionados.basoli}
                     onChange={e => setProveedoresSeleccionados({ ...proveedoresSeleccionados, basoli: e.target.checked })}
                     className="w-4 h-4"
+                    disabled={ordenados.basoli.length === 0}
                   />
                   <span className="font-semibold">BÁSOLI ({ordenados.basoli.length} items)</span>
                 </label>
@@ -1141,6 +1239,7 @@ export default function CotizacionesPage() {
                     checked={proveedoresSeleccionados.partzilla}
                     onChange={e => setProveedoresSeleccionados({ ...proveedoresSeleccionados, partzilla: e.target.checked })}
                     className="w-4 h-4"
+                    disabled={ordenados.partzilla.length === 0}
                   />
                   <span className="font-semibold">PARTZILLA ({ordenados.partzilla.length} items)</span>
                 </label>
@@ -1151,6 +1250,7 @@ export default function CotizacionesPage() {
                     checked={proveedoresSeleccionados.otra}
                     onChange={e => setProveedoresSeleccionados({ ...proveedoresSeleccionados, otra: e.target.checked })}
                     className="w-4 h-4"
+                    disabled={ordenados.otra.length === 0}
                   />
                   <span className="font-semibold">OTROS PROVEEDORES ({ordenados.otra.length} items)</span>
                 </label>
@@ -1182,7 +1282,6 @@ export default function CotizacionesPage() {
           </div>
         )}
 
-        {/* PANEL LATERAL DETALLES */}
         {itemActivoIndex !== null && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end z-50">
             <div className="bg-white w-full md:w-96 h-screen md:h-auto md:rounded-lg p-6 overflow-y-auto">
