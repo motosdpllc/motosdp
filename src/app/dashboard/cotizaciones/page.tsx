@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase, fmtDate, fmt, getNextCounter } from '@/lib/supabase'
+import html2pdf from 'html2pdf.js'
 
 const MULTIPLICADOR = 1.11
 
@@ -30,6 +31,10 @@ interface Cotizacion {
   destino: string
   vin: string
   precio_final: number
+  fecha_envio_programado?: string
+  hora_programada?: string
+  enviar_automatico?: boolean
+  mensaje_whatsapp?: string
   cotizacion_items?: CotizacionItem[]
 }
 
@@ -53,6 +58,27 @@ const ITEM_VACIO: CotizacionItem = {
   proveedor_otro_link: ''
 }
 
+// Función para elegir mejor proveedor automáticamente
+const elegirMejorProveedor = (item: CotizacionItem): 'basoli' | 'partzilla' | 'otra' | null => {
+  const proveedores = [
+    { nombre: 'basoli', precio: item.basoli },
+    { nombre: 'partzilla', precio: item.partzilla },
+    { nombre: 'otra', precio: item.otra }
+  ]
+
+  // Filtrar los que tienen precio > 0
+  const conPrecio = proveedores.filter(p => p.precio > 0)
+
+  if (conPrecio.length === 0) return null
+
+  // Retornar el más barato
+  const mejorProveedor = conPrecio.reduce((prev, current) =>
+    prev.precio < current.precio ? prev : current
+  )
+
+  return mejorProveedor.nombre as any
+}
+
 export default function CotizacionesPage() {
   const [vista, setVista] = useState<'lista' | 'editar'>('lista')
   const [cotizaciones, setCotizaciones] = useState<Cotizacion[]>([])
@@ -69,6 +95,10 @@ export default function CotizacionesPage() {
   const [destino, setDestino] = useState('AR')
   const [vin, setVin] = useState('')
   const [precioFinal, setPrecioFinal] = useState(0)
+  const [fechaEnvioProgramado, setFechaEnvioProgramado] = useState('')
+  const [horaEnvioProgramado, setHoraEnvioProgramado] = useState('')
+  const [enviarAutomatico, setEnviarAutomatico] = useState(false)
+  const [mensajeWhatsapp, setMensajeWhatsapp] = useState('')
 
   // Items y pegado masivo
   const [items, setItems] = useState<CotizacionItem[]>(Array(30).fill(null).map(() => ({ ...ITEM_VACIO })))
@@ -79,6 +109,14 @@ export default function CotizacionesPage() {
 
   // Panel lateral
   const [itemActivoIndex, setItemActivoIndex] = useState<number | null>(null)
+
+  // Modal de proveedores para PDF
+  const [mostrarModalProveedores, setMostrarModalProveedores] = useState(false)
+  const [proveedoresSeleccionados, setProveedoresSeleccionados] = useState({
+    basoli: false,
+    partzilla: false,
+    otra: false
+  })
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -143,7 +181,7 @@ export default function CotizacionesPage() {
         const cols = linea.split('\t')
         if (cols.length < 8) return
 
-        nuevosItems.push({
+        const nuevoItem: CotizacionItem = {
           cantidad: parseInt(cols[0]) || 1,
           codigo: cols[1]?.trim() || '',
           descripcion: cols[2]?.trim() || '',
@@ -152,10 +190,15 @@ export default function CotizacionesPage() {
           partzilla: parseFloat(cols[5]) || 0,
           otra: parseFloat(cols[6]) || 0,
           precio_venta: parseFloat(cols[7]) || 0,
-          proveedor_elegido: 'basoli',
+          proveedor_elegido: null,
           proveedor_otro_nombre: '',
           proveedor_otro_link: ''
-        })
+        }
+
+        // Elegir mejor proveedor automáticamente
+        nuevoItem.proveedor_elegido = elegirMejorProveedor(nuevoItem)
+
+        nuevosItems.push(nuevoItem)
       })
 
       // Llenar hasta 30 filas
@@ -200,6 +243,21 @@ export default function CotizacionesPage() {
     return item.precio_venta > 0 && item.precio_venta < costoConRecargo
   }
 
+  // Ordenar items por proveedor (visual solo)
+  const itemsOrdenados = () => {
+    const activos = items.filter(i => (i.codigo.trim() !== '' || i.descripcion.trim() !== '') && i.cantidad > 0)
+    const pendientes = items.filter(i => (i.codigo.trim() !== '' || i.descripcion.trim() !== '') && i.cantidad === 0)
+
+    const porProveedor = {
+      basoli: activos.filter(i => i.proveedor_elegido === 'basoli'),
+      partzilla: activos.filter(i => i.proveedor_elegido === 'partzilla'),
+      otra: activos.filter(i => i.proveedor_elegido === 'otra'),
+      sin: activos.filter(i => !i.proveedor_elegido)
+    }
+
+    return { ...porProveedor, pendientes }
+  }
+
   // Nueva cotización
   const nuevaCotizacion = async () => {
     try {
@@ -212,6 +270,10 @@ export default function CotizacionesPage() {
       setDestino('AR')
       setVin('')
       setPrecioFinal(0)
+      setFechaEnvioProgramado('')
+      setHoraEnvioProgramado('')
+      setEnviarAutomatico(false)
+      setMensajeWhatsapp('')
       setItems(Array(30).fill(null).map(() => ({ ...ITEM_VACIO })))
       setItemActivoIndex(null)
       setEditId(null)
@@ -232,6 +294,10 @@ export default function CotizacionesPage() {
     setDestino(cot.destino)
     setVin(cot.vin)
     setPrecioFinal(cot.precio_final)
+    setFechaEnvioProgramado(cot.fecha_envio_programado || '')
+    setHoraEnvioProgramado(cot.hora_programada || '')
+    setEnviarAutomatico(cot.enviar_automatico || false)
+    setMensajeWhatsapp(cot.mensaje_whatsapp || '')
 
     const itemsCargados = (cot.cotizacion_items || []).map(i => ({
       ...i,
@@ -278,13 +344,16 @@ export default function CotizacionesPage() {
         cliente_nombre: clienteNombre,
         destino,
         vin,
-        precio_final: precioFinal
+        precio_final: precioFinal,
+        fecha_envio_programado: fechaEnvioProgramado || null,
+        hora_programada: horaEnvioProgramado || null,
+        enviar_automatico: enviarAutomatico,
+        mensaje_whatsapp: mensajeWhatsapp || null
       }
 
       let cotizacionId = editId
 
       if (editId) {
-        // Actualizar
         const { error } = await supabase
           .from('cotizaciones')
           .update(datos)
@@ -292,7 +361,6 @@ export default function CotizacionesPage() {
 
         if (error) throw error
       } else {
-        // Crear
         const { data, error } = await supabase
           .from('cotizaciones')
           .insert([datos])
@@ -303,14 +371,12 @@ export default function CotizacionesPage() {
         cotizacionId = data.id
       }
 
-      // Limpiar items viejos
       if (cotizacionId) {
         await supabase
           .from('cotizacion_items')
           .delete()
           .eq('cotizacion_id', cotizacionId)
 
-        // Insertar nuevos items (solo los que tienen código o descripción)
         const itemsAGuardar = items
           .filter(i => i.codigo.trim() !== '' || i.descripcion.trim() !== '')
           .map(i => ({
@@ -341,7 +407,6 @@ export default function CotizacionesPage() {
       setVista('lista')
       setEditId(null)
 
-      // Recargar
       const { data: cots } = await supabase
         .from('cotizaciones')
         .select('*, cotizacion_items(*)')
@@ -362,15 +427,11 @@ export default function CotizacionesPage() {
     try {
       setLoading(true)
 
-      // Eliminar items
       await supabase.from('cotizacion_items').delete().eq('cotizacion_id', id)
-
-      // Eliminar cotización
       await supabase.from('cotizaciones').delete().eq('id', id)
 
       alert('✅ Cotización eliminada')
 
-      // Recargar
       const { data: cots } = await supabase
         .from('cotizaciones')
         .select('*, cotizacion_items(*)')
@@ -382,6 +443,134 @@ export default function CotizacionesPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Generar PDF para cliente
+  const generarPDFCliente = () => {
+    const { basoli, partzilla, otra, pendientes } = itemsOrdenados()
+    const todosActivos = [...basoli, ...partzilla, ...otra]
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; padding: 20px;">
+        <h1>${nro}</h1>
+        <p><strong>Cliente:</strong> ${clienteNombre}</p>
+        <p><strong>Fecha:</strong> ${new Date(fecha).toLocaleDateString('es-AR')}</p>
+        ${vin ? `<p><strong>VIN:</strong> ${vin}</p>` : ''}
+        
+        <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+          <thead>
+            <tr style="background-color: #f0f0f0;">
+              <th style="border: 1px solid #000; padding: 8px; text-align: left;">Cant</th>
+              <th style="border: 1px solid #000; padding: 8px; text-align: left;">Código</th>
+              <th style="border: 1px solid #000; padding: 8px; text-align: left;">Descripción</th>
+              <th style="border: 1px solid #000; padding: 8px; text-align: right;">Precio Venta</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${todosActivos.map(item => `
+              <tr>
+                <td style="border: 1px solid #000; padding: 8px;">${item.cantidad}</td>
+                <td style="border: 1px solid #000; padding: 8px;">${item.codigo}</td>
+                <td style="border: 1px solid #000; padding: 8px;">${item.descripcion}</td>
+                <td style="border: 1px solid #000; padding: 8px; text-align: right;">$${item.precio_venta.toFixed(2)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+
+        ${pendientes.length > 0 ? `
+          <div style="margin-top: 20px;">
+            <p><strong>Pendiente de cotización:</strong> ${pendientes.map(p => p.codigo).join(', ')}</p>
+          </div>
+        ` : ''}
+
+        ${precioFinal > 0 ? `<p style="margin-top: 20px; font-size: 16px;"><strong>PRECIO FINAL: $${precioFinal.toFixed(2)}</strong></p>` : ''}
+      </div>
+    `
+
+    const opt = {
+      margin: 10,
+      filename: `${nro}_${clienteNombre}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
+    }
+
+    html2pdf().set(opt).from(html).save()
+  }
+
+  // Generar PDF por proveedor
+  const generarPDFProveedor = (proveedor: 'basoli' | 'partzilla' | 'otra') => {
+    const { basoli, partzilla, otra } = itemsOrdenados()
+    const items = proveedor === 'basoli' ? basoli : proveedor === 'partzilla' ? partzilla : otra
+
+    if (items.length === 0) {
+      alert('No hay items para este proveedor')
+      return
+    }
+
+    const nombreProveedor = proveedor === 'basoli' ? 'BÁSOLI' : proveedor === 'partzilla' ? 'PARTZILLA' : 'OTROS PROVEEDORES'
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; padding: 20px;">
+        <h1>Pedido: ${nombreProveedor}</h1>
+        <p><strong>Cotización:</strong> ${nro}</p>
+        <p><strong>Cliente:</strong> ${clienteNombre}</p>
+        <p><strong>Fecha:</strong> ${new Date(fecha).toLocaleDateString('es-AR')}</p>
+        
+        <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+          <thead>
+            <tr style="background-color: #f0f0f0;">
+              <th style="border: 1px solid #000; padding: 8px; text-align: center;">Cant</th>
+              <th style="border: 1px solid #000; padding: 8px; text-align: left;">Código</th>
+              <th style="border: 1px solid #000; padding: 8px; text-align: left;">Descripción</th>
+              <th style="border: 1px solid #000; padding: 8px; text-align: right;">Costo x 1.11</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map(item => {
+              const costoConRecargo = (
+                proveedor === 'basoli' ? item.basoli :
+                proveedor === 'partzilla' ? item.partzilla :
+                item.otra
+              ) * MULTIPLICADOR
+              return `
+                <tr>
+                  <td style="border: 1px solid #000; padding: 8px; text-align: center;">${item.cantidad}</td>
+                  <td style="border: 1px solid #000; padding: 8px;">${item.codigo}</td>
+                  <td style="border: 1px solid #000; padding: 8px;">${item.descripcion}</td>
+                  <td style="border: 1px solid #000; padding: 8px; text-align: right;">$${costoConRecargo.toFixed(2)}</td>
+                </tr>
+              `
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `
+
+    const opt = {
+      margin: 10,
+      filename: `${nro}_${nombreProveedor}.pdf`,
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
+    }
+
+    html2pdf().set(opt).from(html).save()
+  }
+
+  // Abrir WhatsApp
+  const abrirWhatsapp = (cot: Cotizacion) => {
+    const cliente = clientes.find(c => c.id === cot.cliente_id)
+    if (!cliente?.telefono) {
+      alert('El cliente no tiene teléfono registrado')
+      return
+    }
+
+    const mensaje = encodeURIComponent(
+      cot.mensaje_whatsapp || `Hola ${cot.cliente_nombre}, te envío la cotización ${cot.nro}`
+    )
+    window.open(`https://wa.me/${cliente.telefono}?text=${mensaje}`, '_blank')
   }
 
   if (loading) {
@@ -421,33 +610,53 @@ export default function CotizacionesPage() {
                     <th className="px-6 py-3 text-left text-sm font-bold">VIN</th>
                     <th className="px-6 py-3 text-left text-sm font-bold">Fecha</th>
                     <th className="px-6 py-3 text-left text-sm font-bold">Items</th>
+                    <th className="px-6 py-3 text-center text-sm font-bold">Envío</th>
                     <th className="px-6 py-3 text-right text-sm font-bold">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {cotizaciones.map(cot => (
-                    <tr key={cot.id} className="border-b hover:bg-gray-50">
-                      <td className="px-6 py-3 font-semibold">{cot.nro}</td>
-                      <td className="px-6 py-3">{cot.cliente_nombre}</td>
-                      <td className="px-6 py-3 text-sm font-mono">{cot.vin || '—'}</td>
-                      <td className="px-6 py-3 text-sm">{fmtDate(cot.fecha)}</td>
-                      <td className="px-6 py-3 text-sm">{cot.cotizacion_items?.length || 0}</td>
-                      <td className="px-6 py-3 text-right space-x-2">
-                        <button
-                          onClick={() => editarCotizacion(cot)}
-                          className="text-blue-600 hover:text-blue-800 font-semibold text-sm"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          onClick={() => eliminarCotizacion(cot.id)}
-                          className="text-red-600 hover:text-red-800 font-semibold text-sm"
-                        >
-                          Borrar
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {cotizaciones.map(cot => {
+                    const ahora = new Date()
+                    const fechaEnvio = cot.fecha_envio_programado ? new Date(cot.fecha_envio_programado) : null
+                    const debioEnviar = cot.enviar_automatico && fechaEnvio && fechaEnvio <= ahora
+                    
+                    return (
+                      <tr key={cot.id} className={`border-b hover:bg-gray-50 ${debioEnviar ? 'bg-yellow-50' : ''}`}>
+                        <td className="px-6 py-3 font-semibold">{cot.nro}</td>
+                        <td className="px-6 py-3">{cot.cliente_nombre}</td>
+                        <td className="px-6 py-3 text-sm font-mono">{cot.vin || '—'}</td>
+                        <td className="px-6 py-3 text-sm">{fmtDate(cot.fecha)}</td>
+                        <td className="px-6 py-3 text-sm">{cot.cotizacion_items?.length || 0}</td>
+                        <td className="px-6 py-3 text-center text-xs">
+                          {cot.enviar_automatico && cot.fecha_envio_programado && (
+                            <span className={debioEnviar ? 'bg-yellow-200 text-yellow-800 px-2 py-1 rounded' : 'bg-blue-200 text-blue-800 px-2 py-1 rounded'}>
+                              {fmtDate(cot.fecha_envio_programado)} {cot.hora_programada}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-3 text-right space-x-2">
+                          <button
+                            onClick={() => editarCotizacion(cot)}
+                            className="text-blue-600 hover:text-blue-800 font-semibold text-sm"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => abrirWhatsapp(cot)}
+                            className="text-green-600 hover:text-green-800 font-semibold text-sm"
+                          >
+                            💬 WA
+                          </button>
+                          <button
+                            onClick={() => eliminarCotizacion(cot.id)}
+                            className="text-red-600 hover:text-red-800 font-semibold text-sm"
+                          >
+                            Borrar
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -458,6 +667,8 @@ export default function CotizacionesPage() {
   }
 
   // VISTA EDITAR
+  const ordenados = itemsOrdenados()
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
@@ -551,15 +762,63 @@ export default function CotizacionesPage() {
               )}
             </div>
 
-            <div className="mt-4">
-              <label className="block text-sm font-bold mb-1">Precio Final (opcional)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={precioFinal}
-                onChange={e => setPrecioFinal(parseFloat(e.target.value) || 0)}
-                className="w-full border rounded px-3 py-2"
-              />
+            <div className="mt-4 grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold mb-1">Precio Final (opcional)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={precioFinal}
+                  onChange={e => setPrecioFinal(parseFloat(e.target.value) || 0)}
+                  className="w-full border rounded px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold mb-1">Mensaje WhatsApp</label>
+                <input
+                  type="text"
+                  value={mensajeWhatsapp}
+                  onChange={e => setMensajeWhatsapp(e.target.value)}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                  placeholder="Saludo personalizado..."
+                />
+              </div>
+            </div>
+
+            {/* Envío Programado */}
+            <div className="mt-4 p-4 bg-blue-50 rounded border border-blue-200">
+              <label className="flex items-center gap-2 mb-3">
+                <input
+                  type="checkbox"
+                  checked={enviarAutomatico}
+                  onChange={e => setEnviarAutomatico(e.target.checked)}
+                  className="w-4 h-4"
+                />
+                <span className="font-bold">📅 Programar envío automático</span>
+              </label>
+
+              {enviarAutomatico && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold mb-1">Fecha de envío</label>
+                    <input
+                      type="date"
+                      value={fechaEnvioProgramado}
+                      onChange={e => setFechaEnvioProgramado(e.target.value)}
+                      className="w-full border rounded px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold mb-1">Hora de envío</label>
+                    <input
+                      type="time"
+                      value={horaEnvioProgramado}
+                      onChange={e => setHoraEnvioProgramado(e.target.value)}
+                      className="w-full border rounded px-3 py-2"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -583,8 +842,124 @@ export default function CotizacionesPage() {
             </button>
           </div>
 
-          {/* TABLA DE ITEMS */}
+          {/* TABLA DE ITEMS ORDENADOS POR PROVEEDOR */}
           <div className="bg-white rounded-lg shadow overflow-x-auto mb-6">
+            <div className="p-4 border-b bg-gray-50">
+              <h2 className="text-lg font-bold">Items Activos (Ordenados por Proveedor)</h2>
+            </div>
+
+            {/* BÁSOLI */}
+            {ordenados.basoli.length > 0 && (
+              <div className="p-4 border-b">
+                <h3 className="font-bold text-blue-600 mb-3">🏭 BÁSOLI ({ordenados.basoli.length})</h3>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b">
+                      <th className="px-2 py-2 text-left font-bold">Cant</th>
+                      <th className="px-2 py-2 text-left font-bold">Código</th>
+                      <th className="px-2 py-2 text-left font-bold">Descripción</th>
+                      <th className="px-2 py-2 text-center font-bold">Costo x 1.11</th>
+                      <th className="px-2 py-2 text-center font-bold">Venta</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ordenados.basoli.map((item, idx) => (
+                      <tr key={idx} className={esVentaMenor(item) ? 'bg-red-200' : ''}>
+                        <td className="px-2 py-1">{item.cantidad}</td>
+                        <td className="px-2 py-1 font-mono">{item.codigo}</td>
+                        <td className="px-2 py-1">{item.descripcion}</td>
+                        <td className="px-2 py-1 text-center font-bold">${(item.basoli * MULTIPLICADOR).toFixed(2)}</td>
+                        <td className="px-2 py-1 text-center font-bold text-green-700">${item.precio_venta.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* PARTZILLA */}
+            {ordenados.partzilla.length > 0 && (
+              <div className="p-4 border-b">
+                <h3 className="font-bold text-orange-600 mb-3">🔧 PARTZILLA ({ordenados.partzilla.length})</h3>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b">
+                      <th className="px-2 py-2 text-left font-bold">Cant</th>
+                      <th className="px-2 py-2 text-left font-bold">Código</th>
+                      <th className="px-2 py-2 text-left font-bold">Descripción</th>
+                      <th className="px-2 py-2 text-center font-bold">Costo x 1.11</th>
+                      <th className="px-2 py-2 text-center font-bold">Venta</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ordenados.partzilla.map((item, idx) => (
+                      <tr key={idx} className={esVentaMenor(item) ? 'bg-red-200' : ''}>
+                        <td className="px-2 py-1">{item.cantidad}</td>
+                        <td className="px-2 py-1 font-mono">{item.codigo}</td>
+                        <td className="px-2 py-1">{item.descripcion}</td>
+                        <td className="px-2 py-1 text-center font-bold">${(item.partzilla * MULTIPLICADOR).toFixed(2)}</td>
+                        <td className="px-2 py-1 text-center font-bold text-green-700">${item.precio_venta.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* OTRAS PROVEEDORES */}
+            {ordenados.otra.length > 0 && (
+              <div className="p-4 border-b">
+                <h3 className="font-bold text-purple-600 mb-3">🌐 OTROS PROVEEDORES ({ordenados.otra.length})</h3>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b">
+                      <th className="px-2 py-2 text-left font-bold">Cant</th>
+                      <th className="px-2 py-2 text-left font-bold">Código</th>
+                      <th className="px-2 py-2 text-left font-bold">Descripción</th>
+                      <th className="px-2 py-2 text-left font-bold">Proveedor</th>
+                      <th className="px-2 py-2 text-center font-bold">Costo x 1.11</th>
+                      <th className="px-2 py-2 text-center font-bold">Venta</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ordenados.otra.map((item, idx) => (
+                      <tr key={idx} className={esVentaMenor(item) ? 'bg-red-200' : ''}>
+                        <td className="px-2 py-1">{item.cantidad}</td>
+                        <td className="px-2 py-1 font-mono">{item.codigo}</td>
+                        <td className="px-2 py-1">{item.descripcion}</td>
+                        <td className="px-2 py-1 text-sm">
+                          {item.proveedor_otro_link ? (
+                            <a href={item.proveedor_otro_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                              {item.proveedor_otro_nombre} 🔗
+                            </a>
+                          ) : (
+                            item.proveedor_otro_nombre || '—'
+                          )}
+                        </td>
+                        <td className="px-2 py-1 text-center font-bold">${(item.otra * MULTIPLICADOR).toFixed(2)}</td>
+                        <td className="px-2 py-1 text-center font-bold text-green-700">${item.precio_venta.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* PENDIENTES */}
+            {ordenados.pendientes.length > 0 && (
+              <div className="p-4 bg-yellow-50">
+                <p className="font-bold text-yellow-800">
+                  ⏳ Pendiente de cotización: {ordenados.pendientes.map(p => p.codigo).join(', ')}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* TABLA EDITABLE ORIGINAL (OCULTA PERO FUNCIONAL) */}
+          <div className="bg-white rounded-lg shadow overflow-x-auto mb-6">
+            <div className="p-4 border-b bg-gray-50">
+              <h2 className="text-lg font-bold">Editar Items (Todos)</h2>
+            </div>
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-100 border-b">
@@ -704,8 +1079,8 @@ export default function CotizacionesPage() {
             </table>
           </div>
 
-          {/* BOTONES */}
-          <div className="flex gap-3 justify-end">
+          {/* BOTONES DE ACCIÓN */}
+          <div className="flex gap-3 justify-end mb-6">
             <button
               type="button"
               onClick={() => setVista('lista')}
@@ -713,17 +1088,98 @@ export default function CotizacionesPage() {
             >
               Cancelar
             </button>
+
+            <button
+              type="button"
+              onClick={generarPDFCliente}
+              className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 font-semibold"
+            >
+              📄 PDF Cliente
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMostrarModalProveedores(true)}
+              className="px-6 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 font-semibold"
+            >
+              📋 PDF Proveedores
+            </button>
+
             <button
               type="submit"
               disabled={guardando}
               className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-semibold disabled:opacity-50"
             >
-              {guardando ? 'Guardando...' : 'Guardar Cotización'}
+              {guardando ? 'Guardando...' : '✅ Guardar'}
             </button>
           </div>
         </form>
 
-        {/* PANEL LATERAL */}
+        {/* MODAL PARA SELECCIONAR PROVEEDORES */}
+        {mostrarModalProveedores && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full">
+              <h2 className="text-lg font-bold mb-4">Generar PDF para Proveedores</h2>
+
+              <div className="space-y-3 mb-6">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={proveedoresSeleccionados.basoli}
+                    onChange={e => setProveedoresSeleccionados({ ...proveedoresSeleccionados, basoli: e.target.checked })}
+                    className="w-4 h-4"
+                  />
+                  <span className="font-semibold">BÁSOLI ({ordenados.basoli.length} items)</span>
+                </label>
+
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={proveedoresSeleccionados.partzilla}
+                    onChange={e => setProveedoresSeleccionados({ ...proveedoresSeleccionados, partzilla: e.target.checked })}
+                    className="w-4 h-4"
+                  />
+                  <span className="font-semibold">PARTZILLA ({ordenados.partzilla.length} items)</span>
+                </label>
+
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={proveedoresSeleccionados.otra}
+                    onChange={e => setProveedoresSeleccionados({ ...proveedoresSeleccionados, otra: e.target.checked })}
+                    className="w-4 h-4"
+                  />
+                  <span className="font-semibold">OTROS PROVEEDORES ({ordenados.otra.length} items)</span>
+                </label>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setMostrarModalProveedores(false)}
+                  className="flex-1 px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (proveedoresSeleccionados.basoli) generarPDFProveedor('basoli')
+                    if (proveedoresSeleccionados.partzilla) generarPDFProveedor('partzilla')
+                    if (proveedoresSeleccionados.otra) generarPDFProveedor('otra')
+                    setMostrarModalProveedores(false)
+                  }}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold"
+                >
+                  Descargar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* PANEL LATERAL DETALLES */}
         {itemActivoIndex !== null && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end z-50">
             <div className="bg-white w-full md:w-96 h-screen md:h-auto md:rounded-lg p-6 overflow-y-auto">
