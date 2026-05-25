@@ -3,28 +3,17 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
-interface Item {
-  id: string
-  codigo: string
-  producto: string
-  ubicacion: string
-  cliente_nombre: string
-  marca?: string
-  precio_venta?: number
-}
-
-interface Ubicacion {
+interface EstadoResumen {
   nombre: string
   icon: string
   color: string
+  textColor: string
   count: number
-  items: Item[]
 }
 
 export default function DashboardPage() {
-  const [ubicaciones, setUbicaciones] = useState<Ubicacion[]>([])
+  const [estados, setEstados] = useState<EstadoResumen[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedUbicacion, setSelectedUbicacion] = useState<string | null>(null)
 
   useEffect(() => {
     const cargar = async () => {
@@ -34,37 +23,98 @@ export default function DashboardPage() {
 
         const { data } = await supabase
           .from('items')
-          .select('id, codigo, producto, ubicacion, cliente_nombre, marca, precio_venta')
+          .select('ubicacion')
           .gte('fecha_compra', hoy)
           .lte('fecha_compra', hoy + 'T23:59:59')
 
-        if (data) {
-          const grouped: { [key: string]: Item[] } = {}
+        const estadosConfig: { [key: string]: { icon: string; color: string; textColor: string } } = {
+          'Proveedor': { icon: '🏭', color: 'bg-blue-500', textColor: 'text-blue-600' },
+          'En tránsito': { icon: '🚚', color: 'bg-yellow-500', textColor: 'text-yellow-600' },
+          'En tránsito a Daniel': { icon: '🛫', color: 'bg-orange-500', textColor: 'text-orange-600' },
+          'Daniel': { icon: '👤', color: 'bg-purple-500', textColor: 'text-purple-600' },
+          'Pablo': { icon: '👤', color: 'bg-pink-500', textColor: 'text-pink-600' },
+          'Blue Mail': { icon: '📦', color: 'bg-indigo-500', textColor: 'text-indigo-600' },
+          'Tato': { icon: '👤', color: 'bg-cyan-500', textColor: 'text-cyan-600' },
+          'Tránsito a Bs As': { icon: '✈️', color: 'bg-green-500', textColor: 'text-green-600' },
+          'En Mano': { icon: '✋', color: 'bg-emerald-500', textColor: 'text-emerald-600' },
+          'Vendido': { icon: '💰', color: 'bg-gray-500', textColor: 'text-gray-600' },
+          'Cancelado': { icon: '❌', color: 'bg-red-500', textColor: 'text-red-600' }
+        }
 
+        const contador: { [key: string]: number } = {}
+        if (data) {
           data.forEach(item => {
             const ubi = item.ubicacion || 'Sin ubicación'
-            if (!grouped[ubi]) grouped[ubi] = []
-            grouped[ubi].push(item)
+            contador[ubi] = (contador[ubi] || 0) + 1
           })
+        }
 
-          const ubicacionesConfig: { [key: string]: { icon: string; color: string } } = {
-            'Proveedor': { icon: '🏭', color: 'bg-blue-100 border-blue-300' },
-            'En tránsito': { icon: '🚚', color: 'bg-yellow-100 border-yellow-300' },
-            'En tránsito a Daniel': { icon: '🛫', color: 'bg-orange-100 border-orange-300' },
-            'Daniel': { icon: '👤', color: 'bg-purple-100 border-purple-300' },
-            'Pablo': { icon: '👤', color: 'bg-pink-100 border-pink-300' },
-            'Blue Mail': { icon: '📦', color: 'bg-indigo-100 border-indigo-300' },
-            'Tato': { icon: '👤', color: 'bg-cyan-100 border-cyan-300' },
-            'Tránsito a Bs As': { icon: '✈️', color: 'bg-green-100 border-green-300' },
-            'En Mano': { icon: '✋', color: 'bg-emerald-100 border-emerald-300' },
-            'Vendido': { icon: '💰', color: 'bg-gray-100 border-gray-300' },
-            'Cancelado': { icon: '❌', color: 'bg-red-100 border-red-300' },
-            'Sin ubicación': { icon: '❓', color: 'bg-gray-100 border-gray-300' }
-          }
+        const resultado: EstadoResumen[] = Object.entries(estadosConfig).map(([nombre, config]) => ({
+          nombre,
+          icon: config.icon,
+          color: config.color,
+          textColor: config.textColor,
+          count: contador[nombre] || 0
+        }))
 
-          const resultado: Ubicacion[] = Object.entries(grouped).map(([nombre, items]) => {
-            const config = ubicacionesConfig[nombre] || { icon: '📍', color: 'bg-gray-100 border-gray-300' }
-            return {
+        setEstados(resultado)
+      } catch (err) {
+        console.error('Error:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    cargar()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6 flex items-center justify-center">
+        <p className="text-gray-500 text-lg">Cargando...</p>
+      </div>
+    )
+  }
+
+  const totalItems = estados.reduce((sum, est) => sum + est.count, 0)
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-5xl font-bold text-gray-800 mb-2">📊 Dashboard Hoy</h1>
+          <p className="text-gray-600 text-lg">{new Date().toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+        </div>
+
+        {/* TOTAL */}
+        <div className="mb-8 p-8 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg shadow-lg">
+          <p className="text-xl opacity-90">Total de productos hoy</p>
+          <p className="text-6xl font-bold">{totalItems}</p>
+        </div>
+
+        {/* ESTADOS */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          {estados.map(est => (
+            <div
+              key={est.nombre}
+              className={`${est.color} text-white rounded-lg p-6 shadow-lg hover:shadow-xl transition transform hover:scale-105 cursor-pointer`}
+            >
+              <div className="text-4xl mb-2">{est.icon}</div>
+              <p className="text-sm font-semibold opacity-90 mb-2">{est.nombre}</p>
+              <p className="text-3xl font-bold">{est.count}</p>
+            </div>
+          ))}
+        </div>
+
+        {totalItems === 0 && (
+          <div className="text-center py-16">
+            <p className="text-gray-500 text-xl">No hay productos hoy</p>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}            return {
               nombre,
               icon: config.icon,
               color: config.color,
