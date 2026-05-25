@@ -1,21 +1,24 @@
 'use client'
-import { useState, useEffect, useRef, Suspense } from 'react'
-import { supabase, fmt, type Item, type Cliente } from '@/lib/supabase'
+import { useState, useEffect, useRef } from 'react'
+import { supabase, fmt, type Item } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import toast from 'react-hot-toast'
-import { Search, Plus, X } from 'lucide-react'
+import { X } from 'lucide-react'
 
 interface VentaItem {
-  id: string; producto: string; oem?: string; codigo?: string
-  costoTotal: number; precio: number; tipo: 'inventario' | 'rapido' | 'cotizacion'
+  id: string
+  producto: string
+  oem?: string
+  codigo?: string
+  costoTotal: number
+  precio: number
+  tipo: 'inventario' | 'rapido' | 'cotizacion'
 }
 
 function VentasForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const cliDropRef = useRef<HTMLDivElement>(null)
-  const itemDropRef = useRef<HTMLDivElement>(null)
-  const [clientes, setClientes] = useState<Cliente[]>([])
+  const [clientes, setClientes] = useState([])
   const [cliSearch, setCliSearch] = useState('')
   const [showCliDrop, setShowCliDrop] = useState(false)
   const [clienteId, setClienteId] = useState('')
@@ -26,47 +29,21 @@ function VentasForm() {
   const [estadoPago, setEstadoPago] = useState('')
   const [ventaItems, setVentaItems] = useState<VentaItem[]>([])
   const [itemSearch, setItemSearch] = useState('')
-  const [itemResults, setItemResults] = useState<Item[]>([])
+  const [itemResults, setItemResults] = useState([])
   const [showItemDrop, setShowItemDrop] = useState(false)
-  const [rprod, setRprod] = useState(''); const [rcosto, setRcosto] = useState('')
-  const [rprecio, setRprecio] = useState(''); const [roem, setRoem] = useState('')
+  const [rprod, setRprod] = useState('')
+  const [rcosto, setRcosto] = useState('')
+  const [rprecio, setRprecio] = useState('')
+  const [roem, setRoem] = useState('')
   const [saving, setSaving] = useState(false)
-  const [cotizaciones, setCotizaciones] = useState<any[]>([])
+  const [cotizaciones, setCotizaciones] = useState([])
   const [showCotDrop, setShowCotDrop] = useState(false)
   const [cotSearch, setCotSearch] = useState('')
 
   useEffect(() => {
     supabase.from('clientes').select('*').order('nombre').then(({ data }) => setClientes(data || []))
     supabase.from('cotizaciones').select('*, cotizacion_items(*)').order('created_at', { ascending: false }).then(({ data }) => setCotizaciones(data || []))
-
-    // Cargar cotización si viene desde cotizaciones
-    const cotId = searchParams.get('desde_cot')
-    if (cotId) {
-      const cotData = sessionStorage.getItem('cotizacion_para_venta')
-      if (cotData) {
-        const cot = JSON.parse(cotData)
-        if (cot.cliente_nombre) { setClienteNombre(cot.cliente_nombre); setCliSearch(cot.cliente_nombre); setClienteId(cot.cliente_id || '') }
-        // Cargar ítems de la cotización
-        const items: VentaItem[] = (cot.cotizacion_items || []).map((it: any) => ({
-          id: 'cot_' + it.id,
-          producto: it.descripcion || '',
-          costoTotal: it.subtotal || 0,
-          precio: it.precio_venta || it.subtotal || 0,
-          tipo: 'cotizacion' as const
-        }))
-        setVentaItems(items)
-        sessionStorage.removeItem('cotizacion_para_venta')
-        toast.success('Cotización cargada — revisá los precios y confirmá')
-      }
-    }
-
-    const h = (e: MouseEvent) => {
-      if (cliDropRef.current && !cliDropRef.current.contains(e.target as Node)) setShowCliDrop(false)
-      if (itemDropRef.current && !itemDropRef.current.contains(e.target as Node)) setShowItemDrop(false)
-    }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [searchParams])
+  }, [])
 
   const filtCli = clientes.filter(c => cliSearch && c.nombre.toLowerCase().includes(cliSearch.toLowerCase())).slice(0, 6)
   const filtCot = cotizaciones.filter(c =>
@@ -84,6 +61,7 @@ function VentasForm() {
     const items: VentaItem[] = (cot.cotizacion_items || []).map((it: any) => ({
       id: 'cot_' + it.id + '_' + Date.now(),
       producto: it.descripcion || '',
+      codigo: it.codigo || '',
       costoTotal: it.subtotal || 0,
       precio: it.precio_venta || it.subtotal || 0,
       tipo: 'cotizacion' as const
@@ -112,7 +90,7 @@ function VentasForm() {
 
   const agregarRapido = () => {
     if (!rprod.trim()) { toast.error('Ingresá el nombre'); return }
-    setVentaItems(p => [...p, { id: 'rapido_' + Date.now(), producto: rprod, oem: roem, costoTotal: parseFloat(rcosto) || 0, precio: parseFloat(rprecio) || 0, tipo: 'rapido' }])
+    setVentaItems(p => [...p, { id: 'rapido_' + Date.now(), producto: rprod, oem: roem, codigo: '', costoTotal: parseFloat(rcosto) || 0, precio: parseFloat(rprecio) || 0, tipo: 'rapido' }])
     setRprod(''); setRcosto(''); setRprecio(''); setRoem('')
   }
 
@@ -135,9 +113,8 @@ function VentasForm() {
           updated_at: new Date().toISOString()
         }).eq('id', vi.id)
       } else {
-        // cotizacion o rapido — crear item nuevo
         await supabase.from('items').insert({
-          producto: vi.producto, oem: vi.oem || null,
+          producto: vi.producto, oem: vi.oem || null, codigo: vi.codigo || null,
           costo_total: vi.costoTotal, precio_venta: vi.precio, ganancia: vi.precio - vi.costoTotal,
           cliente_id: clienteId || null, cliente_nombre: clienteNombre || null,
           nro_venta: nro, estado_pago: estadoPago || null, fecha_venta: fecha,
@@ -151,24 +128,33 @@ function VentasForm() {
   }
 
   return (
-    <div className="p-6 max-w-3xl">
-      <h1 className="text-2xl font-bold mb-6">Nueva venta</h1>
+    <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow">
+      <h1 className="text-3xl font-bold mb-8">Nueva venta</h1>
 
       {/* Cargar desde cotización */}
-      <div className="card mb-4 border-blue-200 bg-blue-50">
-        <div className="text-sm font-semibold text-blue-800 mb-3">📋 Cargar desde cotización</div>
+      <div className="bg-blue-50 p-6 rounded-lg mb-8">
+        <h2 className="text-lg font-bold mb-4">📋 Cargar desde cotización</h2>
         <div className="relative">
-          <input className="input" placeholder="Buscar cotización por número o cliente..."
-            value={cotSearch} onChange={e => { setCotSearch(e.target.value); setShowCotDrop(true) }}
-            onFocus={() => setShowCotDrop(true)} />
+          <input
+            type="text"
+            value={cotSearch}
+            onChange={(e) => { setCotSearch(e.target.value); setShowCotDrop(true) }}
+            placeholder="Buscar cotización por nro o cliente..."
+            className="w-full border rounded px-3 py-2"
+            onFocus={() => setShowCotDrop(true)}
+          />
           {showCotDrop && filtCot.length > 0 && (
-            <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-20 mt-1">
+            <div className="absolute top-full left-0 right-0 bg-white border rounded mt-1 shadow-lg z-10 max-h-48 overflow-y-auto">
               {filtCot.map(c => (
-                <div key={c.id} className="px-3 py-2.5 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0"
-                  onMouseDown={e => { e.preventDefault(); cargarCotizacion(c) }}>
-                  <div className="font-medium text-sm">{c.nro} — {c.cliente_nombre || 'Sin cliente'}</div>
-                  <div className="text-xs text-gray-400">{c.cotizacion_items?.length || 0} ítems · {c.precio_final ? fmt(c.precio_final) : 'Sin precio final'}</div>
-                </div>
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); cargarCotizacion(c) }}
+                  className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b last:border-b-0"
+                >
+                  <p className="font-bold">{c.nro} — {c.cliente_nombre || 'Sin cliente'}</p>
+                  <p className="text-sm text-gray-600">{c.cotizacion_items?.length || 0} ítems · {c.precio_final ? fmt(c.precio_final) : 'Sin precio final'}</p>
+                </button>
               ))}
             </div>
           )}
@@ -176,32 +162,46 @@ function VentasForm() {
       </div>
 
       {/* Datos */}
-      <div className="card mb-4">
-        <div className="text-sm font-semibold mb-4">Datos de la venta</div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="md:col-span-2">
-            <label className="label">Cliente</label>
-            <div className="relative" ref={cliDropRef}>
-              <input className="input" placeholder="Escribí para buscar cliente..." value={cliSearch}
-                onChange={e => { setCliSearch(e.target.value); setShowCliDrop(true); if (!e.target.value) { setClienteId(''); setClienteNombre('') } }}
-                onFocus={() => { if (cliSearch) setShowCliDrop(true) }} />
+      <div className="bg-gray-50 p-6 rounded-lg mb-8">
+        <h2 className="text-lg font-bold mb-4">Datos de la venta</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <label className="block text-sm font-bold mb-2">Cliente</label>
+            <div className="relative">
+              <input
+                type="text"
+                value={cliSearch}
+                onChange={(e) => { setCliSearch(e.target.value); setShowCliDrop(true); if (!e.target.value) { setClienteId(''); setClienteNombre('') } }}
+                placeholder="Buscar..."
+                className="w-full border rounded px-3 py-2"
+                onFocus={() => { if (cliSearch) setShowCliDrop(true) }}
+              />
               {showCliDrop && filtCli.length > 0 && (
-                <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-20 mt-1">
+                <div className="absolute top-full left-0 right-0 bg-white border rounded mt-1 shadow-lg z-10 max-h-48 overflow-y-auto">
                   {filtCli.map(c => (
-                    <div key={c.id} className="px-3 py-2.5 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0"
-                      onMouseDown={e => { e.preventDefault(); setClienteId(c.id); setClienteNombre(c.nombre); setCliSearch(c.nombre); setShowCliDrop(false) }}>
-                      <div className="font-medium text-sm">{c.nombre}</div>
-                      <div className="text-xs text-gray-400">{c.telefono}</div>
-                    </div>
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={(e) => { e.preventDefault(); setClienteId(c.id); setClienteNombre(c.nombre); setCliSearch(c.nombre); setShowCliDrop(false) }}
+                      className="w-full text-left px-4 py-2 hover:bg-gray-50 border-b last:border-b-0"
+                    >
+                      <p className="font-bold">{c.nombre}</p>
+                      {c.telefono && <p className="text-xs text-gray-600">{c.telefono}</p>}
+                    </button>
                   ))}
                 </div>
               )}
             </div>
           </div>
-          <div><label className="label">Fecha</label><input className="input" type="date" value={fecha} onChange={e => setFecha(e.target.value)} /></div>
+
           <div>
-            <label className="label">Destino</label>
-            <select className="input" value={destino} onChange={e => { setDestino(e.target.value); autoNro(e.target.value) }}>
+            <label className="block text-sm font-bold mb-2">Fecha</label>
+            <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} className="w-full border rounded px-3 py-2" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold mb-2">Destino</label>
+            <select value={destino} onChange={(e) => { setDestino(e.target.value); autoNro(e.target.value) }} className="w-full border rounded px-3 py-2">
               <option value="">— seleccionar —</option>
               <option value="AR">Argentina (AR-###)</option>
               <option value="EB">eBay (EB-###)</option>
@@ -209,90 +209,167 @@ function VentasForm() {
               <option value="INT">Internacional (INT-###)</option>
             </select>
           </div>
-          <div><label className="label">Nro. venta <span className="tag-auto text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full ml-1">auto</span></label><input className="input-readonly" readOnly value={nroVenta} placeholder="Se genera según destino" /></div>
-          <div><label className="label">Estado $</label>
-            <select className="input" value={estadoPago} onChange={e => setEstadoPago(e.target.value)}>
-              <option value="">—</option><option>Saldado</option><option>Debe</option><option>Debemos</option>
+
+          <div>
+            <label className="block text-sm font-bold mb-2">Nro. venta</label>
+            <input type="text" value={nroVenta} disabled className="w-full border rounded px-3 py-2 bg-gray-100" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold mb-2">Estado pago</label>
+            <select value={estadoPago} onChange={(e) => setEstadoPago(e.target.value)} className="w-full border rounded px-3 py-2">
+              <option value="">— —</option>
+              <option value="Saldado">Saldado</option>
+              <option value="Debe">Debe</option>
+              <option value="Debemos">Debemos</option>
             </select>
           </div>
         </div>
       </div>
 
       {/* Items */}
-      <div className="card mb-4">
-        <div className="text-sm font-semibold mb-3">Ítems de esta venta</div>
-        <div className="relative mb-4" ref={itemDropRef}>
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-          <input className="input pl-9" placeholder="Buscar ítem disponible del inventario..."
-            value={itemSearch} onChange={e => buscarItems(e.target.value)}
-            onFocus={() => { if (itemResults.length) setShowItemDrop(true) }} />
+      <div className="bg-gray-50 p-6 rounded-lg mb-8">
+        <h2 className="text-lg font-bold mb-4">Ítems de esta venta</h2>
+
+        <div className="relative mb-6">
+          <input
+            type="text"
+            value={itemSearch}
+            onChange={(e) => buscarItems(e.target.value)}
+            placeholder="Buscar por producto, código, OEM..."
+            className="w-full border rounded px-3 py-2"
+            onFocus={() => { if (itemResults.length) setShowItemDrop(true) }}
+          />
           {showItemDrop && itemResults.length > 0 && (
-            <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-20 mt-1 max-h-56 overflow-y-auto">
+            <div className="absolute top-full left-0 right-0 bg-white border rounded mt-1 shadow-lg z-10 max-h-48 overflow-y-auto">
               {itemResults.map(x => (
-                <div key={x.id} className="px-3 py-2.5 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0"
-                  onMouseDown={e => { e.preventDefault(); agregarItem(x) }}>
-                  <div className="font-medium text-sm">{x.producto} <span className="font-mono text-xs text-gray-400">{x.codigo}</span></div>
-                  <div className="text-xs text-gray-400">{x.oem ? 'OEM: ' + x.oem + ' · ' : ''}Costo: {fmt(x.costo_total)} · {x.ubicacion}</div>
-                </div>
+                <button
+                  key={x.id}
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); agregarItem(x) }}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-50 border-b last:border-b-0"
+                >
+                  <p className="font-mono font-bold text-blue-600">{x.codigo}</p>
+                  <p className="font-semibold">{x.producto}</p>
+                  <p className="text-sm text-gray-600">{x.oem ? 'OEM: ' + x.oem + ' · ' : ''}Costo: {fmt(x.costo_total)} · {x.ubicacion}</p>
+                </button>
               ))}
             </div>
           )}
         </div>
 
-        {ventaItems.length === 0
-          ? <div className="text-center py-6 text-gray-400 text-sm border-2 border-dashed border-gray-200 rounded-lg">Cargá una cotización arriba o buscá ítems del inventario</div>
-          : ventaItems.map(x => (
-            <div key={x.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg mb-2 border border-gray-100">
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm truncate">{x.producto}
-                  {x.codigo && <span className="font-mono text-xs text-gray-400 ml-1">{x.codigo}</span>}
-                  {x.tipo === 'cotizacion' && <span className="text-xs bg-blue-100 text-blue-700 px-1 rounded ml-1">cotización</span>}
-                  {x.tipo === 'rapido' && <span className="text-xs bg-gray-200 text-gray-500 px-1 rounded ml-1">rápido</span>}
+        {ventaItems.length === 0 ? (
+          <p className="text-gray-500 text-center py-8">Cargá una cotización arriba o buscá ítems del inventario</p>
+        ) : (
+          <div className="space-y-4 mb-6">
+            {ventaItems.map(x => (
+              <div key={x.id} className="border rounded p-4 bg-white">
+                <div className="flex justify-between items-start mb-2">
+                  <div className="font-bold flex-1">
+                    {x.codigo ? (
+                      <p><span className="font-mono text-blue-600 bg-blue-50 px-2 py-1 rounded">{x.codigo}</span> — {x.producto}</p>
+                    ) : (
+                      <p>{x.producto}</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setVentaItems(p => p.filter(v => v.id !== x.id))}
+                    className="text-red-600 hover:text-red-800 ml-4"
+                  >
+                    <X size={20} />
+                  </button>
                 </div>
-                <div className="text-xs text-gray-400">{x.oem ? 'OEM: ' + x.oem + ' · ' : ''}Costo: {fmt(x.costoTotal)}</div>
+
+                <p className="text-sm text-gray-600 mb-3">
+                  {x.oem ? 'OEM: ' + x.oem + ' · ' : ''}Costo: {fmt(x.costoTotal)}
+                  {x.tipo === 'cotizacion' && ' · cotización'}
+                  {x.tipo === 'rapido' && ' · rápido'}
+                </p>
+
+                <div className="flex gap-4 items-end">
+                  <div className="flex-1">
+                    <label className="block text-sm font-bold mb-1">Precio venta</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={x.precio}
+                      onChange={(e) => setVentaItems(p => p.map(v => v.id === x.id ? { ...v, precio: parseFloat(e.target.value) || 0 } : v))}
+                      className="w-full border rounded px-3 py-2"
+                    />
+                  </div>
+                  <p className="font-bold text-green-600">{fmt(x.precio - x.costoTotal)}</p>
+                </div>
               </div>
-              <div className="w-32 flex-shrink-0">
-                <input type="number" step="0.01" placeholder="Precio USD" className="input text-sm"
-                  value={x.precio || ''} onChange={e => setVentaItems(p => p.map(v => v.id === x.id ? { ...v, precio: parseFloat(e.target.value) || 0 } : v))} />
-              </div>
-              <button onClick={() => setVentaItems(p => p.filter(v => v.id !== x.id))} className="btn btn-sm btn-danger flex-shrink-0"><X size={14} /></button>
-            </div>
-          ))
-        }
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Ítem rápido */}
-      <div className="card mb-4">
-        <div className="text-sm font-semibold mb-3">Ítem rápido (no está en el inventario)</div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="col-span-2 md:col-span-4"><label className="label">Producto</label><input className="input" placeholder="Nombre del repuesto" value={rprod} onChange={e => setRprod(e.target.value)} /></div>
-          <div><label className="label">Costo (USD)</label><input className="input" type="number" step="0.01" placeholder="0.00" value={rcosto} onChange={e => setRcosto(e.target.value)} /></div>
-          <div><label className="label">Precio venta</label><input className="input" type="number" step="0.01" placeholder="0.00" value={rprecio} onChange={e => setRprecio(e.target.value)} /></div>
-          <div><label className="label">OEM</label><input className="input" placeholder="Opcional" value={roem} onChange={e => setRoem(e.target.value)} /></div>
-          <div className="flex items-end"><button onClick={agregarRapido} disabled={!rprod.trim()} className="btn btn-primary w-full justify-center"><Plus size={14} /> Agregar</button></div>
+      <div className="bg-yellow-50 p-6 rounded-lg mb-8">
+        <h2 className="text-lg font-bold mb-4">Ítem rápido (no está en el inventario)</h2>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 items-end">
+          <div>
+            <label className="block text-sm font-bold mb-1">Producto</label>
+            <input type="text" value={rprod} onChange={(e) => setRprod(e.target.value)} className="w-full border rounded px-3 py-2" />
+          </div>
+          <div>
+            <label className="block text-sm font-bold mb-1">Costo (USD)</label>
+            <input type="number" step="0.01" value={rcosto} onChange={(e) => setRcosto(e.target.value)} className="w-full border rounded px-3 py-2" />
+          </div>
+          <div>
+            <label className="block text-sm font-bold mb-1">Precio venta</label>
+            <input type="number" step="0.01" value={rprecio} onChange={(e) => setRprecio(e.target.value)} className="w-full border rounded px-3 py-2" />
+          </div>
+          <div>
+            <label className="block text-sm font-bold mb-1">OEM</label>
+            <input type="text" value={roem} onChange={(e) => setRoem(e.target.value)} className="w-full border rounded px-3 py-2" />
+          </div>
+          <button type="button" onClick={agregarRapido} className="bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700 font-bold">Agregar</button>
         </div>
       </div>
 
-      <div className="bg-gray-900 text-white rounded-xl p-4 flex justify-between items-center mb-4">
-        <div>
-          <div className="text-gray-400 text-sm">Total venta</div>
-          <div className={`text-sm mt-0.5 ${total - costo >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-            Ganancia: {total - costo >= 0 ? '+' : ''}{fmt(total - costo)}
+      {/* Totales */}
+      <div className="bg-gray-50 p-6 rounded-lg mb-8">
+        <div className="grid grid-cols-3 gap-4 text-center">
+          <div>
+            <p className="text-sm text-gray-600 mb-2">Costo total</p>
+            <p className="text-2xl font-bold text-red-600">{fmt(costo)}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600 mb-2">Total venta</p>
+            <p className="text-2xl font-bold text-blue-600">{fmt(total)}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-600 mb-2">Ganancia</p>
+            <p className={`text-2xl font-bold ${total - costo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              {total - costo >= 0 ? '+' : ''}{fmt(total - costo)}
+            </p>
           </div>
         </div>
-        <div className="text-3xl font-bold">{fmt(total)}</div>
       </div>
 
-      <div className="flex gap-3">
-        <button onClick={confirmar} disabled={saving || !ventaItems.length || !destino} className="btn btn-primary px-8">
+      {/* Botones */}
+      <div className="flex gap-4 justify-end">
+        <button type="button" onClick={() => router.push('/dashboard')} className="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">Cancelar</button>
+        <button
+          type="button"
+          onClick={confirmar}
+          disabled={saving || ventaItems.length === 0}
+          className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 font-bold"
+        >
           {saving ? 'Guardando...' : 'Confirmar venta'}
         </button>
-        <button onClick={() => router.push('/dashboard')} className="btn">Cancelar</button>
       </div>
     </div>
   )
 }
 
 export default function VentasPage() {
-  return <Suspense fallback={<div className="p-6 text-gray-400">Cargando...</div>}><VentasForm /></Suspense>
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <VentasForm />
+    </div>
+  )
 }
