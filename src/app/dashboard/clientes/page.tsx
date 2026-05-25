@@ -1,23 +1,23 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { supabase, fmt, fmtDate, ubicColor, type Cliente, type Item } from '@/lib/supabase'
+import { supabase, fmt, fmtDate, type Cliente, type Item } from '@/lib/supabase'
 import toast from 'react-hot-toast'
-import { Users, Plus, Search, Phone, MapPin, X, ChevronRight } from 'lucide-react'
+import { Phone, MapPin, X } from 'lucide-react'
 
 const PROVINCIAS = ['Buenos Aires','CABA','Catamarca','Chaco','Chubut','Córdoba','Corrientes','Entre Ríos','Formosa','Jujuy','La Pampa','La Rioja','Mendoza','Misiones','Neuquén','Río Negro','Salta','San Juan','San Luis','Santa Cruz','Santa Fe','Santiago del Estero','Tierra del Fuego','Tucumán','Otro país']
 const EMPTY = { nombre:'', telefono:'', direccion:'', codigo_postal:'', provincia:'', notas:'' }
 type Vista = 'agenda' | 'form' | 'detalle'
 
 export default function ClientesPage() {
-  const [clientes, setClientes] = useState<Cliente[]>([])
-  const [form, setForm] = useState<typeof EMPTY>(EMPTY)
-  const [editId, setEditId] = useState<string|null>(null)
+  const [clientes, setClientes] = useState<any>([])
+  const [form, setForm] = useState(EMPTY)
+  const [editId, setEditId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [vista, setVista] = useState<Vista>('agenda')
-  const [selectedCli, setSelectedCli] = useState<Cliente|null>(null)
-  const [itemsCli, setItemsCli] = useState<Item[]>([])
-  const [cotsCli, setCotsCli] = useState<any[]>([])
+  const [selectedCli, setSelectedCli] = useState<Cliente | null>(null)
+  const [itemsCli, setItemsCli] = useState<any>([])
+  const [cotsCli, setCotsCli] = useState<any>([])
   const [loadingDetalle, setLoadingDetalle] = useState(false)
 
   const load = async () => {
@@ -25,206 +25,414 @@ export default function ClientesPage() {
     setClientes(data || [])
     setLoading(false)
   }
+
   useEffect(() => { load() }, [])
 
   const guardar = async () => {
     if (!form.nombre.trim()) { toast.error('El nombre es obligatorio'); return }
-    if (editId) {
-      await supabase.from('clientes').update({ ...form, updated_at: new Date().toISOString() }).eq('id', editId)
-      toast.success('Cliente actualizado')
-    } else {
-      await supabase.from('clientes').insert(form)
-      toast.success('Cliente creado')
+    try {
+      if (editId) {
+        await supabase.from('clientes').update({ ...form, updated_at: new Date().toISOString() }).eq('id', editId)
+        toast.success('Cliente actualizado')
+      } else {
+        await supabase.from('clientes').insert([form])
+        toast.success('Cliente creado')
+      }
+      setForm(EMPTY)
+      setEditId(null)
+      setVista('agenda')
+      load()
+    } catch (err) {
+      toast.error('Error al guardar')
     }
-    setForm(EMPTY); setEditId(null); setVista('agenda'); load()
   }
 
   const editar = (c: Cliente) => {
     setEditId(c.id)
-    setForm({ nombre:c.nombre, telefono:c.telefono||'', direccion:c.direccion||'', codigo_postal:c.codigo_postal||'', provincia:c.provincia||'', notas:c.notas||'' })
+    setForm({
+      nombre: c.nombre,
+      telefono: c.telefono || '',
+      direccion: c.direccion || '',
+      codigo_postal: c.codigo_postal || '',
+      provincia: c.provincia || '',
+      notas: c.notas || ''
+    })
     setVista('form')
   }
 
   const eliminar = async (id: string) => {
     if (!confirm('¿Eliminar este cliente?')) return
-    await supabase.from('clientes').delete().eq('id', id)
-    toast.success('Eliminado'); setVista('agenda'); load()
+    try {
+      await supabase.from('clientes').delete().eq('id', id)
+      toast.success('Cliente eliminado')
+      setVista('agenda')
+      load()
+    } catch (err) {
+      toast.error('Error al eliminar')
+    }
   }
 
   const verDetalle = async (c: Cliente) => {
-    setSelectedCli(c); setVista('detalle'); setLoadingDetalle(true)
-    const [itemsRes, cotsRes] = await Promise.all([
-      supabase.from('items').select('*').or(`cliente_id.eq.${c.id},cliente_nombre.ilike.${c.nombre}`).order('created_at', { ascending: false }),
-      supabase.from('cotizaciones').select('*, cotizacion_items(*)').or(`cliente_id.eq.${c.id},cliente_nombre.ilike.${c.nombre}`).order('created_at', { ascending: false })
-    ])
-    setItemsCli(itemsRes.data || [])
-    setCotsCli(cotsRes.data || [])
+    setSelectedCli(c)
+    setVista('detalle')
+    setLoadingDetalle(true)
+    try {
+      const [itemsRes, cotsRes] = await Promise.all([
+        supabase.from('items').select('*').or(`cliente_id.eq.${c.id},cliente_nombre.ilike.${c.nombre}`).order('created_at', { ascending: false }),
+        supabase.from('cotizaciones').select('*, cotizacion_items(*)').or(`cliente_id.eq.${c.id},cliente_nombre.ilike.${c.nombre}`).order('created_at', { ascending: false })
+      ])
+      setItemsCli(itemsRes.data || [])
+      setCotsCli(cotsRes.data || [])
+    } catch (err) {
+      toast.error('Error al cargar detalles')
+    }
     setLoadingDetalle(false)
   }
 
-  const filtered = clientes.filter(c =>
+  const filtered = clientes.filter((c: any) =>
     !search || c.nombre.toLowerCase().includes(search.toLowerCase()) ||
-    (c.telefono||'').includes(search) || (c.provincia||'').toLowerCase().includes(search.toLowerCase())
+    (c.telefono || '').includes(search) || (c.provincia || '').toLowerCase().includes(search.toLowerCase())
   )
 
-  const agrupados: Record<string, Cliente[]> = {}
-  filtered.forEach(c => {
+  const agrupados: Record<string, any[]> = {}
+  filtered.forEach((c: any) => {
     const letra = c.nombre[0].toUpperCase()
     if (!agrupados[letra]) agrupados[letra] = []
     agrupados[letra].push(c)
   })
 
-  const iniciales = (n: string) => n.split(' ').map(x=>x[0]).slice(0,2).join('').toUpperCase()
-  const colores = ['bg-blue-500','bg-green-500','bg-purple-500','bg-orange-500','bg-pink-500','bg-teal-500','bg-indigo-500','bg-red-500']
+  const iniciales = (n: string) => n.split(' ').map(x => x[0]).slice(0, 2).join('').toUpperCase()
+  const colores = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-pink-500', 'bg-teal-500', 'bg-indigo-500', 'bg-red-500']
   const colorCli = (n: string) => colores[n.charCodeAt(0) % colores.length]
 
+  // VISTA DETALLE
   if (vista === 'detalle' && selectedCli) {
-    const vendidos = itemsCli.filter(x => x.ubicacion === 'Vendido')
-    const enTransito = itemsCli.filter(x => (x.ubicacion||'').includes('ránsito'))
+    const vendidos = itemsCli.filter((x: any) => x.ubicacion === 'Vendido')
+    const enTransito = itemsCli.filter((x: any) => (x.ubicacion || '').includes('ránsito'))
+
     return (
-      <div className="p-6 max-w-3xl">
-        <button onClick={() => setVista('agenda')} className="btn mb-4">← Volver</button>
-        <div className="card mb-4 bg-gray-900 text-white">
+      <div className="max-w-4xl mx-auto p-6">
+        <button type="button" onClick={() => setVista('agenda')} className="mb-6 px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600">
+          ← Volver
+        </button>
+
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg p-8 mb-6">
           <div className="flex items-start gap-4">
-            <div className={`w-16 h-16 rounded-full ${colorCli(selectedCli.nombre)} flex items-center justify-center text-white text-xl font-bold flex-shrink-0`}>{iniciales(selectedCli.nombre)}</div>
-            <div className="flex-1">
-              <h2 className="text-xl font-bold">{selectedCli.nombre}</h2>
-              {selectedCli.telefono && <a href={`tel:${selectedCli.telefono}`} className="flex items-center gap-1.5 text-gray-300 text-sm mt-1 hover:text-white"><Phone size={13}/> {selectedCli.telefono}</a>}
-              {selectedCli.direccion && <div className="flex items-center gap-1.5 text-gray-400 text-sm mt-0.5"><MapPin size={13}/> {selectedCli.direccion} {selectedCli.codigo_postal?'('+selectedCli.codigo_postal+')':''} {selectedCli.provincia?'· '+selectedCli.provincia:''}</div>}
-              {selectedCli.notas && <div className="text-gray-400 text-xs mt-1 italic">{selectedCli.notas}</div>}
+            <div className={`${colorCli(selectedCli.nombre)} w-16 h-16 rounded-full flex items-center justify-center text-2xl font-bold text-white`}>
+              {iniciales(selectedCli.nombre)}
             </div>
-            <div className="flex gap-2 flex-shrink-0">
-              <button onClick={() => editar(selectedCli)} className="btn btn-sm bg-white/10 text-white border-white/20 hover:bg-white/20">Editar</button>
-              <button onClick={() => <button
-  type="button"
-  onClick={() => eliminar(selectedCli.id)}
-  className="btn btn-sm bg-red-500/20 text-red-300 border-red-500/30"
->
-  Eliminar
-</button>
+            <div className="flex-1">
+              <h1 className="text-3xl font-bold">{selectedCli.nombre}</h1>
+              {selectedCli.telefono && (
+                <p className="flex items-center gap-2 mt-2 text-blue-100">
+                  <Phone size={16} /> {selectedCli.telefono}
+                </p>
+              )}
+              {selectedCli.direccion && (
+                <p className="flex items-center gap-2 mt-1 text-blue-100">
+                  <MapPin size={16} /> {selectedCli.direccion} {selectedCli.codigo_postal ? '(' + selectedCli.codigo_postal + ')' : ''} {selectedCli.provincia ? '· ' + selectedCli.provincia : ''}
+                </p>
+              )}
+              {selectedCli.notas && (
+                <p className="mt-3 italic text-blue-100">{selectedCli.notas}</p>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => editar(selectedCli)}
+                className="px-4 py-2 bg-white/20 text-white rounded hover:bg-white/30 font-bold text-sm"
+              >
+                Editar
+              </button>
+              <button
+                type="button"
+                onClick={() => eliminar(selectedCli.id)}
+                className="px-4 py-2 bg-red-500/30 text-red-100 rounded hover:bg-red-500/40 font-bold text-sm"
+              >
+                Eliminar
+              </button>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-3 mb-4">
-          <div className="card text-center"><div className="text-2xl font-bold">{itemsCli.length}</div><div className="text-xs text-gray-500 mt-1">Ítems totales</div></div>
-          <div className="card text-center"><div className="text-2xl font-bold text-amber-600">{enTransito.length}</div><div className="text-xs text-gray-500 mt-1">En tránsito</div></div>
-          <div className="card text-center"><div className="text-2xl font-bold text-green-600">{vendidos.length}</div><div className="text-xs text-gray-500 mt-1">Vendidos</div></div>
-          <div className="card text-center"><div className="text-2xl font-bold text-blue-600">{cotsCli.length}</div><div className="text-xs text-gray-500 mt-1">Cotizaciones</div></div>
+        <div className="grid grid-cols-4 gap-4 mb-8">
+          <div className="bg-white rounded-lg shadow p-4 text-center">
+            <p className="text-3xl font-bold text-blue-600">{itemsCli.length}</p>
+            <p className="text-gray-600 text-sm">Ítems totales</p>
+          </div>
+          <div className="bg-white rounded-lg shadow p-4 text-center">
+            <p className="text-3xl font-bold text-orange-600">{enTransito.length}</p>
+            <p className="text-gray-600 text-sm">En tránsito</p>
+          </div>
+          <div className="bg-white rounded-lg shadow p-4 text-center">
+            <p className="text-3xl font-bold text-green-600">{vendidos.length}</p>
+            <p className="text-gray-600 text-sm">Vendidos</p>
+          </div>
+          <div className="bg-white rounded-lg shadow p-4 text-center">
+            <p className="text-3xl font-bold text-purple-600">{cotsCli.length}</p>
+            <p className="text-gray-600 text-sm">Cotizaciones</p>
+          </div>
         </div>
 
         {selectedCli.telefono && (
-          <a href={`https://wa.me/${selectedCli.telefono.replace(/\D/g,'')}?text=Hola ${selectedCli.nombre.split(' ')[0]}!`} target="_blank"
-            className="btn btn-success w-full justify-center mb-4">💬 Abrir WhatsApp</a>
+          <a
+            href={`https://wa.me/${selectedCli.telefono}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block mb-8 p-4 bg-green-50 border-2 border-green-500 text-green-700 rounded-lg font-bold text-center hover:bg-green-100"
+          >
+            💬 Abrir WhatsApp
+          </a>
         )}
 
         {cotsCli.length > 0 && (
-          <div className="card mb-4">
-            <div className="text-sm font-semibold mb-3">Cotizaciones ({cotsCli.length})</div>
-            {cotsCli.map(c => (
-              <div key={c.id} className="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0">
-                <div>
-                  <div className="font-medium text-sm">{c.nro}</div>
-                  <div className="text-xs text-gray-400">{fmtDate(c.fecha)} · {c.cotizacion_items?.length||0} ítems</div>
+          <div className="bg-white rounded-lg shadow p-6 mb-6">
+            <h2 className="text-xl font-bold mb-4">Cotizaciones ({cotsCli.length})</h2>
+            <div className="space-y-2">
+              {cotsCli.map((c: any) => (
+                <div key={c.id} className="border rounded p-4 flex justify-between items-center hover:bg-gray-50">
+                  <div>
+                    <p className="font-bold">{c.nro}</p>
+                    <p className="text-sm text-gray-600">{fmtDate(c.fecha)} · {c.cotizacion_items?.length || 0} ítems</p>
+                  </div>
+                  <p className="font-bold text-blue-600">{c.precio_final ? fmt(c.precio_final) : 'Sin precio'}</p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="font-semibold text-sm">{c.precio_final ? fmt(c.precio_final) : <span className="text-gray-400 text-xs">Sin precio</span>}</div>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
 
-        <div className="card">
-          <div className="text-sm font-semibold mb-3">Historial de compras ({itemsCli.length})</div>
-          {loadingDetalle ? <div className="text-center py-6 text-gray-400">Cargando...</div> :
-           itemsCli.length === 0 ? <div className="text-center py-6 text-gray-400">Sin ítems registrados</div> :
-           itemsCli.map(x => (
-            <div key={x.id} className="flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-0">
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm truncate">{x.producto} <span className="font-mono text-xs text-gray-400">{x.codigo}</span></div>
-                <div className="text-xs text-gray-400">{x.nro_orden?'Orden: '+x.nro_orden+' · ':''}{fmtDate(x.fecha_compra)}</div>
-              </div>
-              <div className="text-right flex-shrink-0">
-                <div className="text-sm font-medium">{x.precio_venta ? fmt(x.precio_venta) : fmt(x.costo_total)}</div>
-                <span className={`badge text-xs ${ubicColor(x.ubicacion)}`}>{x.ubicacion}</span>
-              </div>
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-bold mb-4">Historial de compras ({itemsCli.length})</h2>
+          {loadingDetalle ? (
+            <p className="text-gray-500">Cargando...</p>
+          ) : itemsCli.length === 0 ? (
+            <p className="text-gray-500">Sin ítems registrados</p>
+          ) : (
+            <div className="space-y-2">
+              {itemsCli.map((x: any) => (
+                <div key={x.id} className="border rounded p-4 flex justify-between items-center hover:bg-gray-50">
+                  <div>
+                    <p className="font-bold">{x.producto} <span className="font-mono text-blue-600">{x.codigo}</span></p>
+                    <p className="text-sm text-gray-600">{x.nro_orden ? 'Orden: ' + x.nro_orden + ' · ' : ''}{fmtDate(x.fecha_compra)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-green-600">{x.precio_venta ? fmt(x.precio_venta) : fmt(x.costo_total)}</p>
+                    <p className="text-sm text-gray-600">{x.ubicacion}</p>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       </div>
     )
   }
 
-  if (vista === 'form') return (
-    <div className="p-6 max-w-2xl">
-      <button onClick={() => { setForm(EMPTY); setEditId(null); setVista('agenda') }} className="btn mb-4">← Volver</button>
-      <h1 className="text-2xl font-bold mb-6">{editId ? 'Editar cliente' : 'Nuevo cliente'}</h1>
-      <div className="card">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="md:col-span-2"><label className="label">Nombre *</label><input className="input" placeholder="Nombre completo" value={form.nombre} onChange={e=>setForm(p=>({...p,nombre:e.target.value}))} /></div>
-          <div><label className="label">Teléfono</label><input className="input" placeholder="+54 11 ..." value={form.telefono} onChange={e=>setForm(p=>({...p,telefono:e.target.value}))} /></div>
-          <div><label className="label">Dirección</label><input className="input" placeholder="Calle y número" value={form.direccion} onChange={e=>setForm(p=>({...p,direccion:e.target.value}))} /></div>
-          <div><label className="label">Código postal</label><input className="input" placeholder="1708" value={form.codigo_postal} onChange={e=>setForm(p=>({...p,codigo_postal:e.target.value}))} /></div>
-          <div><label className="label">Provincia</label>
-            <select className="input" value={form.provincia} onChange={e=>setForm(p=>({...p,provincia:e.target.value}))}>
-              <option value="">— opcional —</option>
-              {PROVINCIAS.map(p=><option key={p}>{p}</option>)}
-            </select>
-          </div>
-          <div className="md:col-span-2"><label className="label">Notas</label><input className="input" placeholder="Opcional" value={form.notas} onChange={e=>setForm(p=>({...p,notas:e.target.value}))} /></div>
-        </div>
-        <div className="flex gap-2 mt-4">
-          <button onClick={guardar} disabled={!form.nombre.trim()} className="btn btn-primary">{editId ? 'Actualizar' : 'Guardar cliente'}</button>
-          <button onClick={() => { setForm(EMPTY); setEditId(null); setVista('agenda') }} className="btn">Cancelar</button>
-        </div>
-      </div>
-    </div>
-  )
+  // VISTA FORMULARIO
+  if (vista === 'form') {
+    return (
+      <div className="max-w-2xl mx-auto p-6">
+        <button
+          type="button"
+          onClick={() => { setForm(EMPTY); setEditId(null); setVista('agenda') }}
+          className="mb-6 px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+        >
+          ← Volver
+        </button>
 
-  return (
-    <div className="p-6 max-w-4xl">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3"><Users size={24} className="text-gray-700"/><h1 className="text-2xl font-bold">Clientes</h1><span className="text-gray-400 text-sm">({clientes.length})</span></div>
-        <button onClick={() => { setForm(EMPTY); setEditId(null); setVista('form') }} className="btn btn-primary"><Plus size={16}/> Nuevo cliente</button>
-      </div>
-      <div className="relative mb-6">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
-        <input className="input pl-10 text-base" placeholder="Buscar por nombre, teléfono, provincia..." value={search} onChange={e=>setSearch(e.target.value)} />
-        {search && <button onClick={()=>setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"><X size={16}/></button>}
-      </div>
-      {loading ? <div className="text-center py-16 text-gray-400">Cargando...</div> :
-       filtered.length === 0 ? <div className="text-center py-16 text-gray-400"><Users size={40} className="mx-auto mb-3 opacity-30"/><div>{search ? 'No encontrado' : 'No hay clientes aún'}</div></div> :
-       search ? (
-        <div className="space-y-2">
-          {filtered.map(c => (
-            <div key={c.id} className="card flex items-center gap-3 cursor-pointer hover:border-gray-400 transition-all" onClick={() => verDetalle(c)}>
-              <div className={`w-10 h-10 rounded-full ${colorCli(c.nombre)} flex items-center justify-center text-white font-semibold text-sm flex-shrink-0`}>{iniciales(c.nombre)}</div>
-              <div className="flex-1 min-w-0"><div className="font-semibold">{c.nombre}</div><div className="text-xs text-gray-500">{c.telefono?c.telefono+' · ':''}{c.provincia||''}</div></div>
-              <ChevronRight size={18} className="text-gray-400 flex-shrink-0"/>
+        <div className="bg-white rounded-lg shadow p-6">
+          <h1 className="text-2xl font-bold mb-6">{editId ? 'Editar cliente' : 'Nuevo cliente'}</h1>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-bold mb-1">Nombre *</label>
+              <input
+                type="text"
+                value={form.nombre}
+                onChange={(e) => setForm(p => ({ ...p, nombre: e.target.value }))}
+                className="w-full border rounded px-3 py-2"
+              />
             </div>
-          ))}
-        </div>
-       ) : (
-        <div>
-          {Object.entries(agrupados).sort(([a],[b])=>a.localeCompare(b)).map(([letra, clis]) => (
-            <div key={letra} className="mb-4">
-              <div className="text-xs font-bold text-gray-400 uppercase tracking-widest px-2 py-1 mb-1 border-b border-gray-200">{letra}</div>
-              <div className="space-y-0.5">
-                {clis.map(c => (
-                  <div key={c.id} className="flex items-center gap-3 px-2 py-2.5 rounded-lg hover:bg-gray-50 cursor-pointer transition-all" onClick={() => verDetalle(c)}>
-                    <div className={`w-9 h-9 rounded-full ${colorCli(c.nombre)} flex items-center justify-center text-white font-semibold text-xs flex-shrink-0`}>{iniciales(c.nombre)}</div>
-                    <div className="flex-1 min-w-0"><div className="font-medium text-sm">{c.nombre}</div><div className="text-xs text-gray-400">{c.telefono || c.provincia || ''}</div></div>
-                    {c.telefono && <a href={`tel:${c.telefono}`} onClick={e=>e.stopPropagation()} className="p-1.5 rounded-full hover:bg-gray-200 text-gray-400 hover:text-green-600 transition-all flex-shrink-0"><Phone size={15}/></a>}
-                    <ChevronRight size={16} className="text-gray-300 flex-shrink-0"/>
-                  </div>
+
+            <div>
+              <label className="block text-sm font-bold mb-1">Teléfono</label>
+              <input
+                type="text"
+                value={form.telefono}
+                onChange={(e) => setForm(p => ({ ...p, telefono: e.target.value }))}
+                className="w-full border rounded px-3 py-2"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold mb-1">Dirección</label>
+              <input
+                type="text"
+                value={form.direccion}
+                onChange={(e) => setForm(p => ({ ...p, direccion: e.target.value }))}
+                className="w-full border rounded px-3 py-2"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold mb-1">Código postal</label>
+              <input
+                type="text"
+                value={form.codigo_postal}
+                onChange={(e) => setForm(p => ({ ...p, codigo_postal: e.target.value }))}
+                className="w-full border rounded px-3 py-2"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold mb-1">Provincia</label>
+              <select
+                value={form.provincia}
+                onChange={(e) => setForm(p => ({ ...p, provincia: e.target.value }))}
+                className="w-full border rounded px-3 py-2"
+              >
+                <option value="">— opcional —</option>
+                {PROVINCIAS.map(p => (
+                  <option key={p} value={p}>{p}</option>
                 ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold mb-1">Notas</label>
+              <textarea
+                value={form.notas}
+                onChange={(e) => setForm(p => ({ ...p, notas: e.target.value }))}
+                className="w-full border rounded px-3 py-2 h-20"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-3 mt-6">
+            <button
+              type="button"
+              onClick={guardar}
+              className="flex-1 px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold"
+            >
+              {editId ? 'Actualizar' : 'Guardar cliente'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setForm(EMPTY); setEditId(null); setVista('agenda') }}
+              className="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // VISTA AGENDA
+  return (
+    <div className="max-w-6xl mx-auto p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Clientes ({clientes.length})</h1>
+        <button
+          type="button"
+          onClick={() => { setForm(EMPTY); setEditId(null); setVista('form') }}
+          className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-bold"
+        >
+          + Nuevo cliente
+        </button>
+      </div>
+
+      <div className="relative mb-6">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar por nombre, teléfono o provincia..."
+          className="w-full border rounded px-4 py-2 pl-4"
+        />
+        {search && (
+          <button
+            type="button"
+            onClick={() => setSearch('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          >
+            <X size={20} />
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <p className="text-gray-500 text-center py-8">Cargando...</p>
+      ) : filtered.length === 0 ? (
+        <p className="text-gray-500 text-center py-8">{search ? 'No encontrado' : 'No hay clientes aún'}</p>
+      ) : search ? (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="space-y-1">
+            {filtered.map((c: any) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => verDetalle(c)}
+                className="w-full text-left px-6 py-4 hover:bg-gray-50 border-b last:border-b-0 flex items-center justify-between group"
+              >
+                <div className="flex items-center gap-4 flex-1">
+                  <div className={`${colorCli(c.nombre)} w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm`}>
+                    {iniciales(c.nombre)}
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-bold">{c.nombre}</p>
+                    <p className="text-sm text-gray-600">{c.telefono ? c.telefono + ' · ' : ''}{c.provincia || ''}</p>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {Object.entries(agrupados).sort(([a], [b]) => a.localeCompare(b)).map(([letra, clis]) => (
+            <div key={letra}>
+              <h2 className="text-lg font-bold text-gray-700 mb-3">{letra}</h2>
+              <div className="bg-white rounded-lg shadow overflow-hidden">
+                <div className="space-y-1">
+                  {clis.map((c: any) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => verDetalle(c)}
+                      className="w-full text-left px-6 py-4 hover:bg-gray-50 border-b last:border-b-0 flex items-center justify-between group"
+                    >
+                      <div className="flex items-center gap-4 flex-1">
+                        <div className={`${colorCli(c.nombre)} w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm`}>
+                          {iniciales(c.nombre)}
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-bold">{c.nombre}</p>
+                          <p className="text-sm text-gray-600">{c.telefono || c.provincia || ''}</p>
+                        </div>
+                      </div>
+                      {c.telefono && (
+                        <a
+                          href={`https://wa.me/${c.telefono}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="p-2 rounded-full hover:bg-green-100 text-gray-400 hover:text-green-600 transition-all flex-shrink-0"
+                        >
+                          <Phone size={20} />
+                        </a>
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           ))}
         </div>
-       )
-      }
+      )}
     </div>
   )
 }
