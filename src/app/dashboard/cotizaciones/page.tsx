@@ -327,175 +327,129 @@ export default function CotizacionesPage() {
         return
       }
     }
+    const guardarCotizacion = async (e: React.FormEvent, enviarWhatsapp: boolean = false) => {
+  e.preventDefault()
 
-    try {
-      setGuardando(true)
+  if (!nro || !clienteNombre) {
+    alert('⚠️ Número de cotización y cliente son requeridos')
+    return
+  }
 
-      const datos = {
-        nro,
-        fecha,
-        cliente_id: clienteId,
-        cliente_nombre: clienteNombre,
-        destino,
-        vin,
-        precio_final: precioFinal,
-        fecha_envio_programado: fechaEnvioProgramado || null,
-        hora_programada: horaEnvioProgramado || null,
-        enviar_automatico: enviarAutomatico,
-        mensaje_whatsapp: mensajeWhatsapp || null,
-        mostrar_links: mostrarLinks,
-        mostrar_precios_individuales: mostrarPreciosIndividuales
-      }
-
-      let cotizacionId = editId
-
-      if (editId) {
-        const { error } = await supabase
-          .from('cotizaciones')
-          .update(datos)
-          .eq('id', editId)
-
-        if (error) throw error
-      } else {
-        const { data, error } = await supabase
-          .from('cotizaciones')
-          .insert([datos])
-          .select()
-          .single()
-
-        if (error) throw error
-        cotizacionId = data.id
-      }
-
-      if (cotizacionId) {
-        await supabase
-          .from('cotizacion_items')
-          .delete()
-          .eq('cotizacion_id', cotizacionId)
-
-        const itemsAGuardar = items
-          .filter(i => i.codigo.trim() !== '' || i.descripcion.trim() !== '')
-          .map(i => ({
-            cotizacion_id: cotizacionId,
-            cantidad: i.cantidad,
-            codigo: i.codigo,
-            descripcion: i.descripcion,
-            peso_estimado: i.peso_estimado,
-            basoli: i.basoli,
-            partzilla: i.partzilla,
-            otra: i.otra,
-            precio_venta: i.precio_venta,
-            proveedor_elegido: i.proveedor_elegido,
-            proveedor_otro_nombre: i.proveedor_otro_nombre,
-            proveedor_otro_link: i.proveedor_otro_link
-          }))
-
-        if (itemsAGuardar.length > 0) {
-          const { error: insertError } = await supabase
-            .from('cotizacion_items')
-            .insert(itemsAGuardar)
-
-          if (insertError) throw insertError
-        }
-      }
-
-      alert('✅ Cotización guardada correctamente')
-
-     if (enviarWhatsapp) {
-  setEnviandoWhatsapp(true)
-  setTimeout(async () => {
+  if (enviarWhatsapp) {
     const clienteData = clientes.find(c => c.id === clienteId)
-    if (clienteData?.telefono) {
-      const mensaje = encodeURIComponent(
-        mensajeWhatsapp || `Hola ${clienteNombre}, te envío la cotización ${nro}`
-      )
-      window.open(`https://wa.me/${clienteData.telefono}?text=${mensaje}`, '_blank')
-    }
-    
-    const { data: cots } = await supabase
-      .from('cotizaciones')
-      .select('*, cotizacion_items(*)')
-      .order('created_at', { ascending: false })
-    
-    if (cots) setCotizaciones(cots as Cotizacion[])
-    setEnviandoWhatsapp(false)
-    setVista('lista')
-    setEditId(null)
-  }, 500)
-} else {
-  setVista('lista')
-  setEditId(null)
-  const { data: cots } = await supabase
-    .from('cotizaciones')
-    .select('*, cotizacion_items(*)')
-    .order('created_at', { ascending: false })
-
-  if (cots) setCotizaciones(cots as Cotizacion[])
-}
-          const clienteData = clientes.find(c => c.id === clienteId)
-          if (clienteData?.telefono) {
-            const mensaje = encodeURIComponent(
-              mensajeWhatsapp || `Hola ${clienteNombre}, te envío la cotización ${nro}`
-            )
-            window.open(`https://wa.me/${clienteData.telefono}?text=${mensaje}`, '_blank')
-          }
-          setEnviandoWhatsapp(false)
-          setVista('lista')
-          setEditId(null)
-          const { data: cots } = await supabase
-            .from('cotizaciones')
-            .select('*, cotizacion_items(*)')
-            .order('created_at', { ascending: false })
-            if (enviarWhatsapp) {
-  setEnviandoWhatsapp(true)
-  setTimeout(async () => {
-    const clienteData = clientes.find(c => c.id === clienteId)
-    if (clienteData?.telefono) {
-      const mensaje = encodeURIComponent(
-        mensajeWhatsapp || `Hola ${clienteNombre}, te envío la cotización ${nro}`
-      )
-      window.open(`https://wa.me/${clienteData.telefono}?text=${mensaje}`, '_blank')
-    }
-    
-    const { data: cots } = await supabase
-      .from('cotizaciones')
-      .select('*, cotizacion_items(*)')
-      .order('created_at', { ascending: false })
-    
-    if (cots) setCotizaciones(cots as Cotizacion[])
-    setEnviandoWhatsapp(false)
-    setVista('lista')
-    setEditId(null)
-  }, 500)
-} else {
-  setVista('lista')
-  setEditId(null)
-  const { data: cots } = await supabase
-    .from('cotizaciones')
-    .select('*, cotizacion_items(*)')
-    .order('created_at', { ascending: false })
-
-  if (cots) setCotizaciones(cots as Cotizacion[])
-}
-            })
-        }, 500)
-      } else {
-        setVista('lista')
-        setEditId(null)
-        const { data: cots } = await supabase
-          .from('cotizaciones')
-          .select('*, cotizacion_items(*)')
-          .order('created_at', { ascending: false })
-
-        if (cots) setCotizaciones(cots as Cotizacion[])
-      }
-    } catch (err) {
-      alert('❌ Error al guardar: ' + (err instanceof Error ? err.message : 'Error'))
-    } finally {
-      setGuardando(false)
+    if (!clienteData?.telefono) {
+      alert('⚠️ El cliente no tiene teléfono registrado')
+      return
     }
   }
 
+  try {
+    setGuardando(true)
+
+    const datos = {
+      nro,
+      fecha,
+      cliente_id: clienteId,
+      cliente_nombre: clienteNombre,
+      destino,
+      vin,
+      precio_final: precioFinal,
+      fecha_envio_programado: fechaEnvioProgramado || null,
+      hora_programada: horaEnvioProgramado || null,
+      enviar_automatico: enviarAutomatico,
+      mensaje_whatsapp: mensajeWhatsapp || null,
+      mostrar_links: mostrarLinks,
+      mostrar_precios_individuales: mostrarPreciosIndividuales
+    }
+
+    let cotizacionId = editId
+
+    if (editId) {
+      const { error } = await supabase
+        .from('cotizaciones')
+        .update(datos)
+        .eq('id', editId)
+
+      if (error) throw error
+    } else {
+      const { data, error } = await supabase
+        .from('cotizaciones')
+        .insert([datos])
+        .select()
+        .single()
+
+      if (error) throw error
+      cotizacionId = data.id
+    }
+
+    if (cotizacionId) {
+      await supabase
+        .from('cotizacion_items')
+        .delete()
+        .eq('cotizacion_id', cotizacionId)
+
+      const itemsAGuardar = items
+        .filter(i => i.codigo.trim() !== '' || i.descripcion.trim() !== '')
+        .map(i => ({
+          cotizacion_id: cotizacionId,
+          cantidad: i.cantidad,
+          codigo: i.codigo,
+          descripcion: i.descripcion,
+          peso_estimado: i.peso_estimado,
+          basoli: i.basoli,
+          partzilla: i.partzilla,
+          otra: i.otra,
+          precio_venta: i.precio_venta,
+          proveedor_elegido: i.proveedor_elegido,
+          proveedor_otro_nombre: i.proveedor_otro_nombre,
+          proveedor_otro_link: i.proveedor_otro_link
+        }))
+
+      if (itemsAGuardar.length > 0) {
+        const { error: insertError } = await supabase
+          .from('cotizacion_items')
+          .insert(itemsAGuardar)
+
+        if (insertError) throw insertError
+      }
+    }
+
+    alert('✅ Cotización guardada correctamente')
+
+    if (enviarWhatsapp) {
+      setEnviandoWhatsapp(true)
+      const clienteData = clientes.find(c => c.id === clienteId)
+      if (clienteData?.telefono) {
+        const mensaje = encodeURIComponent(
+          mensajeWhatsapp || `Hola ${clienteNombre}, te envío la cotización ${nro}`
+        )
+        window.open(`https://wa.me/${clienteData.telefono}?text=${mensaje}`, '_blank')
+      }
+      
+      const { data: cots } = await supabase
+        .from('cotizaciones')
+        .select('*, cotizacion_items(*)')
+        .order('created_at', { ascending: false })
+      
+      if (cots) setCotizaciones(cots as Cotizacion[])
+      setEnviandoWhatsapp(false)
+    } else {
+      const { data: cots } = await supabase
+        .from('cotizaciones')
+        .select('*, cotizacion_items(*)')
+        .order('created_at', { ascending: false })
+
+      if (cots) setCotizaciones(cots as Cotizacion[])
+    }
+
+    setVista('lista')
+    setEditId(null)
+  } catch (err) {
+    alert('❌ Error al guardar: ' + (err instanceof Error ? err.message : 'Error'))
+  } finally {
+    setGuardando(false)
+  }
+}
   const eliminarCotizacion = async (id: string) => {
     if (!confirm('¿Estás seguro de que querés eliminar esta cotización?')) return
 
