@@ -37,8 +37,7 @@ export default function DashboardPage() {
           'Tato': { icon: '👤', color: 'bg-cyan-500', textColor: 'text-cyan-600' },
           'Tránsito a Bs As': { icon: '✈️', color: 'bg-green-500', textColor: 'text-green-600' },
           'En Mano': { icon: '✋', color: 'bg-emerald-500', textColor: 'text-emerald-600' },
-          'Vendido': { icon: '💰', color: 'bg-gray-500', textColor: 'text-gray-600' },
-          'Cancelado': { icon: '❌', color: 'bg-red-500', textColor: 'text-red-600' }
+          'Vendido': { icon: '💰', color: 'bg-gray-500', textColor: 'text-gray-600' }
         }
 
         const contador: { [key: string]: number } = {}
