@@ -414,7 +414,7 @@ export default function CotizacionesPage() {
           setEnviandoWhatsapp(false)
           setVista('lista')
           setEditId(null)
-          const { data: cots } = supabase
+          const { data: cots } = await supabase
             .from('cotizaciones')
             .select('*, cotizacion_items(*)')
             .order('created_at', { ascending: false })
