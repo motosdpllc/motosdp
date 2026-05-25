@@ -423,12 +423,12 @@ export default function CotizacionesPage() {
   }
 
   const generarPDFCliente = () => {
-    const ordenados = itemsOrdenados()
-    const todosActivos = [...ordenados.basoli, ...ordenados.partzilla, ...ordenados.otra]
+    const { basoli, partzilla, otra, pendientes } = itemsOrdenados() // Llamar aquí
+    const todosActivos = [...basoli, ...partzilla, ...otra]
 
     let filas = '', totalVenta = 0
     todosActivos.forEach(item => {
-      const totalItem = item.precio_venta * item.cantidad
+      const totalItem = item.cantidad * item.precio_venta
       totalVenta += totalItem
 
       const linkHTML = mostrarLinks && item.proveedor_otro_link ? `<br/><a href="${item.proveedor_otro_link}" style="color: #0066cc; font-size: 11px;">🔗 Ver producto</a>` : ''
@@ -536,8 +536,8 @@ export default function CotizacionesPage() {
   }
 
   const generarPDFProveedor = (proveedor: 'basoli' | 'partzilla' | 'otra') => {
-    const ordenados = itemsOrdenados()
-    const items = proveedor === 'basoli' ? ordenados.basoli : proveedor === 'partzilla' ? ordenados.partzilla : ordenados.otra
+    const { basoli, partzilla, otra } = itemsOrdenados() // Llamar aquí
+    const items = proveedor === 'basoli' ? basoli : proveedor === 'partzilla' ? partzilla : otra
 
     if (items.length === 0) {
       toast.error('No hay items para este proveedor')
