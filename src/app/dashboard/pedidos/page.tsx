@@ -1,15 +1,15 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { supabase, fmtDate, ubicColor, type Cliente, type Item, type PedidoCliente } from '@/lib/supabase'
+import { supabase, fmtDate, type Cliente, type Item, type PedidoCliente } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 import { Search, Plus, Package, CheckCircle } from 'lucide-react'
 
 export default function PedidosPage() {
-  const [clientes, setClientes] = useState<Cliente[]>([])
+  const [clientes, setClientes] = useState<any[]>([])
   const [selectedCli, setSelectedCli] = useState<Cliente | null>(null)
-  const [search, setSearch] = useState('')
-  const [pedidos, setPedidos] = useState<PedidoCliente[]>([])
-  const [itemsCli, setItemsCli] = useState<Item[]>([])
+  const [search, setSearch] = useState('') // No se usa actualmente
+  const [pedidos, setPedidos] = useState<any[]>([])
+  const [itemsCli, setItemsCli] = useState<any[]>([])
   const [nuevaDesc, setNuevaDesc] = useState('')
   const [searchCli, setSearchCli] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
@@ -18,7 +18,7 @@ export default function PedidosPage() {
     supabase.from('clientes').select('*').order('nombre').then(({ data }) => setClientes(data || []))
   }, [])
 
-  const filteredCli = clientes.filter(c => c.nombre.toLowerCase().includes(searchCli.toLowerCase())).slice(0, 6)
+  const filteredCli = clientes.filter((c: Cliente) => c.nombre.toLowerCase().includes(searchCli.toLowerCase())).slice(0, 6)
 
   const selectCliente = async (cli: Cliente) => {
     setSelectedCli(cli)
@@ -35,33 +35,59 @@ export default function PedidosPage() {
 
   const agregarPedido = async () => {
     if (!nuevaDesc.trim() || !selectedCli) return
-    // Try to find matching item
-    const match = itemsCli.find(x => x.producto.toLowerCase().includes(nuevaDesc.toLowerCase()) && x.ubicacion !== 'Vendido')
-    const { data } = await supabase.from('pedidos_cliente').insert({
-      cliente_id: selectedCli.id,
-      descripcion: nuevaDesc.trim(),
-      item_id: match?.id || null,
-    }).select().single()
-    if (data) setPedidos(p => [data, ...p])
-    setNuevaDesc('')
-    toast.success('Ítem agregado al pedido')
+    // Try to find matching item - check x.destino !== 'Vendido'
+    const match = itemsCli.find(x => x.producto.toLowerCase().includes(nuevaDesc.toLowerCase()) && x.destino !== 'Vendido' && x.destino !== 'Cancelado')
+    
+    try {
+      const { data, error } = await supabase.from('pedidos_cliente').insert({
+        cliente_id: selectedCli.id,
+        descripcion: nuevaDesc.trim(),
+        item_id: match?.id || null,
+      }).select().single()
+
+      if (error) throw error
+
+      if (data) setPedidos(p => [data, ...p])
+      setNuevaDesc('')
+      toast.success('Ítem agregado al pedido')
+    } catch (error: any) {
+      toast.error('Error al agregar pedido: ' + error.message)
+      console.error(error)
+    }
   }
 
   const toggleEntregado = async (pedido: PedidoCliente) => {
-    const { data } = await supabase.from('pedidos_cliente')
-      .update({ entregado: !pedido.entregado, fecha_entrega: !pedido.entregado ? new Date().toISOString() : null })
-      .eq('id', pedido.id).select().single()
-    if (data) setPedidos(p => p.map(x => x.id === data.id ? data : x))
+    try {
+      const { data, error } = await supabase.from('pedidos_cliente')
+        .update({ entregado: !pedido.entregado, fecha_entrega: !pedido.entregado ? new Date().toISOString() : null })
+        .eq('id', pedido.id).select().single()
+
+      if (error) throw error
+
+      if (data) setPedidos(p => p.map(x => x.id === data.id ? data : x))
+    } catch (error: any) {
+      toast.error('Error al actualizar entrega: ' + error.message)
+      console.error(error)
+    }
   }
 
   const eliminarPedido = async (id: string) => {
-    await supabase.from('pedidos_cliente').delete().eq('id', id)
-    setPedidos(p => p.filter(x => x.id !== id))
+    if (!confirm('¿Eliminar este pedido?')) return
+    try {
+      const { error } = await supabase.from('pedidos_cliente').delete().eq('id', id)
+      if (error) throw error
+      setPedidos(p => p.filter(x => x.id !== id))
+      toast.success('Pedido eliminado')
+    } catch (error: any) {
+      toast.error('Error al eliminar pedido: ' + error.message)
+      console.error(error)
+    }
   }
 
   const getItemStatus = (pedido: PedidoCliente) => {
     const item = itemsCli.find(x => x.id === pedido.item_id)
     if (!item) return null
+    // Devolvemos la ubicación actual si existe
     return item.ubicacion
   }
 
@@ -69,141 +95,150 @@ export default function PedidosPage() {
   const entregados = pedidos.filter(p => p.entregado)
 
   return (
-    <div className="p-6 max-w-3xl">
-      <h1 className="text-2xl font-bold mb-6">Pedidos de clientes</h1>
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-xl p-8">
+        <h1 className="text-3xl font-bold mb-8">Pedidos de clientes</h1>
 
-      {/* Buscar cliente */}
-      <div className="card mb-6">
-        <label className="label">Seleccioná un cliente</label>
-        <div className="relative">
+        {/* Buscar cliente */}
+        <div className="mb-8 p-6 bg-blue-50 rounded-lg">
+          <label className="block text-lg font-bold mb-2">Seleccioná un cliente</label>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input
-              className="input pl-9"
-              placeholder="Buscar cliente..."
+              type="text"
               value={searchCli}
               onChange={e => { setSearchCli(e.target.value); setShowDropdown(true) }}
               onFocus={() => setShowDropdown(true)}
+              placeholder="Buscar cliente por nombre..."
+              className="w-full border rounded px-4 py-2"
             />
+            {showDropdown && filteredCli.length > 0 && (
+              <div className="absolute top-full left-0 right-0 bg-white border rounded mt-1 shadow-lg z-10 max-h-48 overflow-y-auto">
+                {filteredCli.map((c: Cliente) => (
+                  <button key={c.id} type="button" onClick={() => selectCliente(c)} className="w-full text-left px-4 py-2 hover:bg-gray-100 border-b last:border-b-0">
+                    <p className="font-bold">{c.nombre}</p>
+                    <p className="text-sm text-gray-600">{c.telefono} {c.provincia ? '· ' + c.provincia : ''}</p>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-          {showDropdown && filteredCli.length > 0 && (
-            <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-10 mt-1">
-              {filteredCli.map(c => (
-                <div key={c.id} onClick={() => selectCliente(c)} className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0">
-                  <div className="font-medium">{c.nombre}</div>
-                  <div className="text-xs text-gray-400">{c.telefono} {c.provincia ? '· ' + c.provincia : ''}</div>
+        </div>
+
+        {selectedCli && (
+          <>
+            {/* Cliente header */}
+            <div className="mb-8 p-6 bg-blue-100 rounded-lg border-blue-300 border">
+              <h2 className="text-2xl font-bold text-blue-800 mb-2">{selectedCli.nombre}</h2>
+              <p className="text-blue-700">{selectedCli.telefono} {selectedCli.provincia ? '· ' + selectedCli.provincia : ''}</p>
+              <div className="flex gap-4 mt-4">
+                <div className="bg-white rounded p-3 text-center flex-1">
+                  <p className="text-2xl font-bold text-orange-600">{pendientes.length}</p>
+                  <p className="text-sm text-gray-600">ítems pendientes</p>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {selectedCli && (
-        <>
-          {/* Cliente header */}
-          <div className="card mb-4 bg-gray-900 text-white">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="font-bold text-lg">{selectedCli.nombre}</div>
-                <div className="text-gray-400 text-sm">{selectedCli.telefono} {selectedCli.provincia ? '· ' + selectedCli.provincia : ''}</div>
-              </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold">{pendientes.length}</div>
-                <div className="text-gray-400 text-xs">ítems pendientes</div>
+                <div className="bg-white rounded p-3 text-center flex-1">
+                  <p className="text-2xl font-bold text-green-600">{entregados.length}</p>
+                  <p className="text-sm text-gray-600">ítems entregados</p>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Agregar ítem al pedido */}
-          <div className="card mb-4">
-            <div className="text-sm font-semibold mb-3">Agregar ítem al pedido</div>
-            <div className="flex gap-2">
-              <input
-                className="input flex-1"
-                placeholder="Ej: Pistón motor K88 GSXR600..."
-                value={nuevaDesc}
-                onChange={e => setNuevaDesc(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') agregarPedido() }}
-              />
-              <button onClick={agregarPedido} disabled={!nuevaDesc.trim()} className="btn btn-primary">
-                <Plus size={16} /> Agregar
-              </button>
+            {/* Agregar ítem al pedido */}
+            <div className="mb-8 p-6 bg-green-50 rounded-lg border-green-200 border">
+              <h2 className="text-xl font-bold text-green-800 mb-4">Agregar ítem al pedido</h2>
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  value={nuevaDesc}
+                  onChange={e => setNuevaDesc(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') agregarPedido() }}
+                  placeholder="Descripción del ítem (ej: Filtro de aire)"
+                  className="flex-1 border rounded px-3 py-2"
+                />
+                <button type="button" onClick={agregarPedido} className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
+                  Agregar
+                </button>
+              </div>
+              <p className="text-sm text-gray-600 mt-2">Se buscará un ítem disponible en el inventario con esta descripción.</p>
             </div>
-          </div>
 
-          {/* Pedido pendiente */}
-          {pendientes.length > 0 && (
-            <div className="card mb-4">
-              <div className="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-3">⏳ Pendiente de entrega ({pendientes.length})</div>
-              <div className="space-y-2">
-                {pendientes.map(p => {
-                  const status = getItemStatus(p)
-                  return (
-                    <div key={p.id} className="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
-                      <button onClick={() => toggleEntregado(p)}
-                        className="w-6 h-6 rounded border-2 border-gray-300 flex items-center justify-center hover:border-green-500 flex-shrink-0 transition-all">
-                      </button>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{p.descripcion}</div>
-                        {status && (
-                          <span className={`inline-block text-xs px-2 py-0.5 rounded-full mt-0.5 ${ubicColor(status)}`}>{status}</span>
-                        )}
-                        {!status && <span className="text-xs text-gray-400">No encontrado en inventario</span>}
+
+            {/* Pedido pendiente */}
+            {pendientes.length > 0 && (
+              <div className="mb-8 p-6 bg-yellow-50 rounded-lg border-yellow-200 border">
+                <h2 className="text-xl font-bold text-yellow-800 mb-4">⏳ Pendiente de entrega ({pendientes.length})</h2>
+                <div className="space-y-4">
+                  {pendientes.map(p => {
+                    const status = getItemStatus(p)
+                    return (
+                      <div key={p.id} className="flex items-center justify-between p-3 bg-white rounded shadow-sm">
+                        <button type="button" onClick={() => toggleEntregado(p)} className="w-8 h-8 rounded-full border-2 border-yellow-500 flex items-center justify-center text-yellow-600 hover:bg-yellow-50 transition-all flex-shrink-0">
+                          <CheckCircle size={16} />
+                        </button>
+                        <div className="flex-1 ml-4">
+                          <p className="font-semibold">{p.descripcion}</p>
+                          {status && (
+                            <p className="text-sm text-gray-600 flex items-center gap-1"><Package size={14} /> {status}</p>
+                          )}
+                          {!status && <p className="text-sm text-red-600">No encontrado en inventario</p>}
+                        </div>
+                        <button type="button" onClick={() => eliminarPedido(p.id)} className="ml-4 p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-all flex-shrink-0">✕</button>
                       </div>
-                      <button onClick={() => eliminarPedido(p.id)} className="btn btn-sm btn-danger text-xs flex-shrink-0">✕</button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Entregados */}
+            {entregados.length > 0 && (
+              <div className="mb-8 p-6 bg-green-50 rounded-lg border-green-200 border">
+                <h2 className="text-xl font-bold text-green-800 mb-4">✓ Entregado ({entregados.length})</h2>
+                <div className="space-y-4">
+                  {entregados.map(p => (
+                    <div key={p.id} className="flex items-center justify-between p-3 bg-white rounded shadow-sm">
+                      <button type="button" onClick={() => toggleEntregado(p)} className="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center text-white hover:bg-green-700 transition-all flex-shrink-0">
+                        <CheckCircle size={16} />
+                      </button>
+                      <div className="flex-1 ml-4">
+                        <p className="font-semibold">{p.descripcion}</p>
+                        {p.fecha_entrega && <p className="text-sm text-gray-600">Entregado el {fmtDate(p.fecha_entrega.split('T')[0])}</p>}
+                      </div>
+                      <button type="button" onClick={() => eliminarPedido(p.id)} className="ml-4 p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-all flex-shrink-0">✕</button>
                     </div>
-                  )
-                })}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Entregados */}
-          {entregados.length > 0 && (
-            <div className="card mb-4 opacity-70">
-              <div className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-3">✓ Entregado ({entregados.length})</div>
-              <div className="space-y-1">
-                {entregados.map(p => (
-                  <div key={p.id} className="flex items-center gap-3 py-1.5">
-                    <button onClick={() => toggleEntregado(p)}
-                      className="w-6 h-6 rounded bg-green-500 flex items-center justify-center flex-shrink-0">
-                      <CheckCircle size={14} className="text-white" />
-                    </button>
-                    <div className="text-sm line-through text-gray-400 flex-1 truncate">{p.descripcion}</div>
-                    {p.fecha_entrega && <div className="text-xs text-gray-400">{fmtDate(p.fecha_entrega.split('T')[0])}</div>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Historial de compras para este cliente */}
-          {itemsCli.length > 0 && (
-            <div className="card">
-              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Historial de compras ({itemsCli.length})</div>
-              <div className="space-y-1">
-                {itemsCli.map(x => (
-                  <div key={x.id} className="flex items-center gap-3 py-1.5 border-b border-gray-50 last:border-0">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{x.producto} <span className="font-mono text-xs text-gray-400">{x.codigo}</span></div>
-                      <div className="text-xs text-gray-400">{x.nro_orden ? 'Orden: ' + x.nro_orden + ' · ' : ''}{fmtDate(x.fecha_compra)}</div>
+            {/* Historial de compras para este cliente */}
+            {itemsCli.length > 0 && (
+              <div className="mb-8 p-6 bg-gray-50 rounded-lg border-gray-200 border">
+                <h2 className="text-xl font-bold text-gray-800 mb-4">Historial de compras ({itemsCli.length})</h2>
+                <div className="space-y-4">
+                  {itemsCli.map((x: any) => (
+                    <div key={x.id} className="flex items-center justify-between p-3 bg-white rounded shadow-sm">
+                      <div className="flex-1">
+                        <p className="font-bold">{x.producto} <span className="font-mono text-blue-600">{x.codigo}</span></p>
+                        <p className="text-sm text-gray-600">{x.nro_orden ? 'Orden: ' + x.nro_orden + ' · ' : ''}{fmtDate(x.fecha_compra)}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-green-600">{x.precio_venta ? fmt(x.precio_venta) : fmt(x.costo_total)}</p>
+                        <p className="text-sm text-gray-600">{x.ubicacion}</p>
+                      </div>
                     </div>
-                    <span className={`badge ${ubicColor(x.ubicacion)} text-xs`}>{x.ubicacion}</span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-        </>
-      )}
+            )}
+          </>
+        )}
 
-      {!selectedCli && (
-        <div className="text-center py-16 text-gray-400">
-          <Package size={40} className="mx-auto mb-3 opacity-30" />
-          <div>Buscá un cliente para ver su nota de pedido</div>
-        </div>
-      )}
+        {!selectedCli && (
+          <div className="p-10 bg-gray-100 rounded-lg text-center text-gray-600 text-lg">
+            <p>Buscá un cliente para ver su nota de pedido</p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
