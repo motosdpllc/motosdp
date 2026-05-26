@@ -212,7 +212,7 @@ function NuevoForm() {
       const a = f.ancho || 0
       const h = f.alto || 0
       if (l > 0 && a > 0 && h > 0) setF(prev => ({ ...prev, costo_envio: parseFloat((((l * a * h) / 1000000) * 3000).toFixed(2)) }))
-      else setF(prev => ({ ...p, costo_envio: 0 }))
+     else setF(prev => ({ ...prev, costo_envio: 0 }))
     }
   }, [f.peso, f.largo, f.ancho, f.alto, f.tipo_envio])
 
