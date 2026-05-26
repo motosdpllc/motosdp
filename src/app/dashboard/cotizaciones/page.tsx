@@ -1042,7 +1042,7 @@ export default function CotizacionesPage() {
                         <input
                           type="number"
                           value={item.cantidad || ''}
-                          onChange={e => actualizarItem(idx, 'cantidad', e.target.value)}
+                          onChange={e => actualizarItem(idx, 'cantidad', parseFloat(e.target.value) || 0)}
                           className="w-12 border rounded px-1 py-0.5 text-center text-sm"
                           disabled={item.estado === 'cancelado'}
                         />
@@ -1369,7 +1369,7 @@ export default function CotizacionesPage() {
                     type="text"
                     value={items[itemActivoIndex]?.descripcion || ''}
                     onChange={e => actualizarItem(itemActivoIndex, 'descripcion', e.target.value)}
-                    onClick={() => setItemActivoIndex(idx)}
+                    // Aquí se usa itemActivoIndex, no idx
                     className="w-full border rounded px-3 py-2 text-sm"
                   />
                 </div>
