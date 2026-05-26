@@ -9,7 +9,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 export type Ubicacion =
   | 'Proveedor' | 'En tránsito' | 'En tránsito a Daniel'
   | 'Daniel' | 'Pablo' | 'Blue Mail' | 'Tato'
-  | 'Tránsito a Bs As' | 'En Mano' | 'Entregado' | 'Stock EEUU' | 'Stock España' | 'Stock Argentina';
+  | 'Tránsito a Bs As' | 'En Mano' | 'Stock EEUU' | 'Stock España' | 'Stock Argentina' | 'Entregado';
 
 export type Destino = 
   | 'Argentina' | 'Stock EEUU' | 'Uso propio' 
