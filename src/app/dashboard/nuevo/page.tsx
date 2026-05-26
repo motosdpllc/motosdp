@@ -3,8 +3,8 @@ import { useState, useEffect, useCallback, Suspense, useRef } from 'react'
 import { supabase, fmt, getNextCounter, type Cliente } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import toast from 'react-hot-toast'
-// import BotonIA from './BotonIA' // Comentado temporalmente
-// import SelectorCotizacion from './SelectorCotizacion' // Comentado temporalmente
+import BotonIA from './BotonIA' // Descomentado
+import SelectorCotizacion from './SelectorCotizacion' // Descomentado
 
 const MARCAS = [{ v: 'K', l: 'Kawasaki (K)' }, { v: 'Y', l: 'Yamaha (Y)' }, { v: 'S', l: 'Suzuki (S)' }, { v: 'H', l: 'Honda (H)' }, { v: 'HD', l: 'Harley-Davidson (HD)' }, { v: 'OTHER', l: 'Otra...' }]
 const SUBCODIGOS = [{ v: 'M', l: 'M – Motor' }, { v: 'C', l: 'C – Carbureción' }, { v: 'E', l: 'E – Electricidad' }, { v: 'T', l: 'T – Transmisión' }, { v: 'F', l: 'F – Frenos' }, { v: 'S', l: 'S – Suspensión/Chasis' }, { v: 'X', l: 'X – Carrocería' }, { v: 'I', l: 'I – Iluminación' }]
@@ -75,10 +75,11 @@ function NuevoForm() {
   const searchParams = useSearchParams()
   
   const cliDropRef = useRef<HTMLDivElement>(null)
+  const cotDropRef = useRef<HTMLDivElement>(null) // Ref para SelectorCotizacion
 
   const [clientes, setClientes] = useState<any[]>([])
-  const [cotizaciones, setCotizaciones] = useState<any[]>([]) // No se usa directamente aquí, pero se mantiene
-  const [cliSearch, setCliSearch] = useState('')
+  const [cotizaciones, setCotizaciones] = useState<any[]>([])
+  const [cliSearch, setCliSearch] = useState('') // Estado para buscar cliente, usado por SelectorCotizacion
   const [showCliDrop, setShowCliDrop] = useState(false)
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(false) // Declarado aquí
@@ -211,7 +212,7 @@ function NuevoForm() {
       const a = f.ancho || 0
       const h = f.alto || 0
       if (l > 0 && a > 0 && h > 0) setF(prev => ({ ...prev, costo_envio: parseFloat((((l * a * h) / 1000000) * 3000).toFixed(2)) }))
-      else setF(prev => ({ ...prev, costo_envio: 0 }))
+      else setF(prev => ({ ...p, costo_envio: 0 }))
     }
   }, [f.peso, f.largo, f.ancho, f.alto, f.tipo_envio])
 
@@ -224,7 +225,7 @@ function NuevoForm() {
         setF(prev => ({ ...prev, ubicacion: 'En tránsito' }));
       } else {
         // Si no hay tracking, vuelve a proveedor (se acaba de comprar, no en stock físico)
-        setF(prev => ({ ...prev, ubicacion: 'Proveedor' }));
+        setF(prev => ({ ...p, ubicacion: 'Proveedor' }));
       }
     }
   }, [f.tracking_compra, editId]);
@@ -250,7 +251,7 @@ function NuevoForm() {
 
       // Lógica para determinar pendiente_compra
       // Es pendiente_compra si es una VENTA y NO ESTÁ EN STOCK FÍSICO (Proveedor, o algún Tránsito)
-      const isPendienteCompra = tipoCarga === 'Venta' && ![...UBICACIONES_FISICAS.filter(u => !u.startsWith('En tránsito') && u !== 'Proveedor' && u !== 'En Mano')].includes(f.ubicacion);
+      const isPendienteCompra = tipoCarga === 'Venta' && !['En Mano', 'Stock EEUU', 'Stock España', 'Stock Argentina'].includes(f.ubicacion);
 
 
       const payload: any = {
