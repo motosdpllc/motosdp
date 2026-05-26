@@ -1,12 +1,12 @@
 'use client'
 import { useState, useEffect, useCallback, Suspense } from 'react'
-import { supabase, fmt, fmtDate, type Item } from '@/lib/supabase' // quitado ubicColor
+import { supabase, fmt, fmtDate, type Item } from '@/lib/supabase'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import toast from 'react-hot-toast'
 
-// --- NUEVAS UBICACIONES ---
-// Las ubicaciones que representan Stock físico en el inventario
+// --- UBICACIONES ---
+// Las ubicaciones que representan Stock físico en el inventario para el filtro
 const UBICACIONES_FILTRO = ['Proveedor','En tránsito','En tránsito a Daniel','Daniel','Pablo','Blue Mail','Tato','Tránsito a Bs As','En Mano','Stock EEUU', 'Stock España', 'Stock Argentina', 'Vendido', 'Cancelado']
 
 const DESTINOS = ['Argentina','Stock EEUU','Uso propio','Stock Argentina','Stock Internacional']
@@ -79,7 +79,6 @@ function InventarioTable() {
       tracking_compra: tracking,
       eta: eta || null,
       link_tracking_compra: linkTracking || null,
-      // ubicacion: tracking ? (item.peso && item.peso > 0 ? 'En Mano' : 'En tránsito a Daniel') : 'Proveedor', // Lógica de ubicación ahora en NuevoForm
       updated_at: new Date().toISOString()
     }).eq('id', id).then(() => load())
   }
@@ -113,15 +112,15 @@ function InventarioTable() {
             onChange={(e) => setSearch(e.target.value)}
             className="border rounded px-3 py-2"
           />
-          <select value={ubic} onChange={(e) => setUbic(e.target.value)} className="border rounded px-3 py-2">
+          <select value={ubic} onChange={(e) => setUbic(e.target.value)} className="w-full border rounded px-3 py-2">
             <option value="">Todas las ubicaciones</option>
             {UBICACIONES_FILTRO.map(u => (<option key={u} value={u}>{u}</option>))}
           </select>
-          <select value={dest} onChange={(e) => setDest(e.target.value)} className="border rounded px-3 py-2">
+          <select value={dest} onChange={(e) => setDest(e.target.value)} className="w-full border rounded px-3 py-2">
             <option value="">Todos los destinos</option>
             {DESTINOS.map(d => (<option key={d} value={d}>{d}</option>))}
           </select>
-          <select value={pub} onChange={(e) => setPub(e.target.value)} className="border rounded px-3 py-2">
+          <select value={pub} onChange={(e) => setPub(e.target.value)} className="w-full border rounded px-3 py-2">
             <option value="">Toda publicación</option>
             <option value="si">Publicados</option>
             <option value="no">No publicados</option>
@@ -149,7 +148,7 @@ function InventarioTable() {
                 <th className="px-3 py-2 text-left font-bold">Destino</th>
                 <th className="px-3 py-2 text-left font-bold">Estado$</th>
                 <th className="px-3 py-2 text-left font-bold">Cliente</th>
-                <th className="px-3 py-2 text-center font-bold">Pendiente</th> {/* Nueva columna */}
+                <th className="px-3 py-2 text-center font-bold">Pendiente</th>
                 <th className="px-3 py-2 text-center font-bold">Acciones</th>
               </tr>
             </thead>
@@ -193,7 +192,7 @@ function InventarioTable() {
                     <td className="px-3 py-2 text-xs">{x.cliente_nombre || '—'}</td>
                     <td className="px-3 py-2 text-center font-bold">
                       {x.pendiente_compra ? '⏳' : '—'}
-                    </td> {/* Mostrar estado pendiente */}
+                    </td>
                     <td className="px-3 py-2 text-center space-x-1">
                       <a href={`/dashboard/nuevo?edit=${x.id}`} className="text-blue-500 hover:text-blue-700 text-xs">
                         ✏️
