@@ -52,15 +52,14 @@ export default function DashboardPage() {
           })
         }
 
-        // Filtra los estados para mostrar solo los que tienen items, o si quieres mostrar todos aunque estén en 0
+        // NO FILTRAMOS NADA, MOSTRAMOS TODO AUNQUE ESTÉ EN CERO
         const resultado: EstadoResumen[] = Object.entries(estadosConfig).map(([nombre, config]) => ({
           nombre,
           icon: config.icon,
           color: config.color,
           textColor: config.textColor,
           count: contador[nombre] || 0
-        })).filter(est => est.count > 0 || est.nombre === 'Entregado') // Muestra Entregado aunque esté en 0
-
+        })); // <-- Eliminado el .filter()
 
         setEstados(resultado)
       } catch (err) {
