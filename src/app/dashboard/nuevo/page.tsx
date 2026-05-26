@@ -12,6 +12,7 @@ const SUBCODIGOS = [{ v: 'M', l: 'M – Motor' }, { v: 'C', l: 'C – Carbureci�
 // --- NUEVAS UBICACIONES ---
 const UBICACIONES_FISICAS = ['Proveedor','En tránsito','En tránsito a Daniel','Daniel','Pablo','Blue Mail','Tato','Tránsito a Bs As','Stock EEUU', 'Stock España', 'Stock Argentina', 'En Mano']
 const DESTINOS = ['Stock EEUU', 'Stock España', 'Stock Argentina', 'Uso propio', 'Stock Internacional']
+
 const PLATAFORMAS = ['eBay', 'MercadoLibre', 'Amazon', 'Wallapop', 'Facebook Marketplace', 'Web Directa']
 
 interface ItemForm {
@@ -198,7 +199,6 @@ function NuevoForm() {
     }
   }, [f.peso, f.largo, f.ancho, f.alto, f.tipo_envio])
 
-  // Lógica de automatización de ubicación según tracking (corregido prev)
   useEffect(() => {
     if (!editId) {
       if (f.tracking_compra && f.tracking_compra.trim() !== '') {
@@ -228,8 +228,8 @@ function NuevoForm() {
     try {
       const platFinal = plataformasSeleccionadas.length > 0 ? plataformasSeleccionadas.join(', ') : null
 
-      // Lógica para determinar pendiente_compra (CORREGIDA)
-      // Es pendiente_compra si es una VENTA Y NO TIENE FECHA DE COMPRA (aún no se compró)
+      // Lógica para determinar pendiente_compra (CORREGIDA por tu aclaración)
+      // Es pendiente_compra si es una VENTA Y NO TIENE FECHA DE COMPRA (aún no se compró/adquirió)
       const isPendienteCompra = tipoCarga === 'Venta' && (!f.fecha_compra || f.fecha_compra.trim() === '');
 
 
