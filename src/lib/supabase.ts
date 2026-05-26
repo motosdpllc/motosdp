@@ -94,18 +94,18 @@ export interface Cotizacion {
 export interface CotizacionItem {
   id?: string
   cotizacion_id?: string
-  descripcion?: string
-  link?: string
-  ubicacion_producto?: string
-  costo?: number
-  taxes_impo?: number
-  peso_estimado?: number
-  costo_envio?: number
-  taxes_11?: number
-  subtotal?: number
-  orden?: number
-  ganancia_deseada?: number
-  precio_venta?: number
+  cantidad: number
+  codigo: string
+  descripcion: string
+  peso: number
+  basoli: number
+  partzilla: number
+  otra: number
+  precio_venta: number
+  proveedor_elegido: 'basoli' | 'partzilla' | 'otra' | null
+  proveedor_otro_nombre: string
+  proveedor_otro_link: string
+  estado?: string // <--- NUEVO CAMPO
 }
 
 export interface Alerta {
