@@ -19,12 +19,13 @@ export default function DashboardPage() {
     const cargar = async () => {
       try {
         setLoading(true)
-        // Ajustado para contar todos los que no están "vendidos" o "cancelados"
+        // Ajustado para contar todos los que no están "vendidos" o "cancelados" o "entregados"
         const { data } = await supabase
           .from('items')
           .select('ubicacion')
           .not('ubicacion', 'eq', 'Vendido')
           .not('ubicacion', 'eq', 'Cancelado')
+          .not('ubicacion', 'eq', 'Entregado') // Excluir Entregado del conteo de stock
 
 
         const estadosConfig: { [key: string]: { icon: string; color: string; textColor: string } } = {
@@ -40,6 +41,7 @@ export default function DashboardPage() {
           'Stock EEUU': { icon: '🇺🇸', color: 'bg-red-500', textColor: 'text-red-600' },
           'Stock España': { icon: '🇪🇸', color: 'bg-orange-500', textColor: 'text-orange-600' },
           'Stock Argentina': { icon: '🇦🇷', color: 'bg-lime-500', textColor: 'text-lime-600' },
+          'Entregado': { icon: '✅', color: 'bg-teal-500', textColor: 'text-teal-600' }, // Agregado Entregado
         }
 
         const contador: { [key: string]: number } = {}
@@ -50,13 +52,15 @@ export default function DashboardPage() {
           })
         }
 
+        // Filtra los estados para mostrar solo los que tienen items, o si quieres mostrar todos aunque estén en 0
         const resultado: EstadoResumen[] = Object.entries(estadosConfig).map(([nombre, config]) => ({
           nombre,
           icon: config.icon,
           color: config.color,
           textColor: config.textColor,
           count: contador[nombre] || 0
-        }))
+        })).filter(est => est.count > 0 || est.nombre === 'Entregado') // Muestra Entregado aunque esté en 0
+
 
         setEstados(resultado)
       } catch (err) {
@@ -77,7 +81,7 @@ export default function DashboardPage() {
     )
   }
 
-  const totalItemsEnStock = estados.reduce((sum, est) => sum + est.count, 0)
+  const totalItemsEnStock = estados.filter(est => est.nombre !== 'Entregado').reduce((sum, est) => sum + est.count, 0) // Total sin contar Entregado
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
