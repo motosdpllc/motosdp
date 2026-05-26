@@ -3,17 +3,18 @@ import { useState, useEffect, useCallback, Suspense, useRef } from 'react'
 import { supabase, fmt, getNextCounter, type Cliente } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import toast from 'react-hot-toast'
-import BotonIA from './BotonIA' // Asumo que BotonIA existe
-import SelectorCotizacion from './SelectorCotizacion' // Asumo que SelectorCotizacion existe
+// import BotonIA from './BotonIA' // Comentado temporalmente
+// import SelectorCotizacion from './SelectorCotizacion' // Comentado temporalmente
+
+const MARCAS = [{ v: 'K', l: 'Kawasaki (K)' }, { v: 'Y', l: 'Yamaha (Y)' }, { v: 'S', l: 'Suzuki (S)' }, { v: 'H', l: 'Honda (H)' }, { v: 'HD', l: 'Harley-Davidson (HD)' }, { v: 'OTHER', l: 'Otra...' }]
+const SUBCODIGOS = [{ v: 'M', l: 'M – Motor' }, { v: 'C', l: 'C – Carbureción' }, { v: 'E', l: 'E – Electricidad' }, { v: 'T', l: 'T – Transmisión' }, { v: 'F', l: 'F – Frenos' }, { v: 'S', l: 'S – Suspensión/Chasis' }, { v: 'X', l: 'X – Carrocería' }, { v: 'I', l: 'I – Iluminación' }]
 
 // --- NUEVAS UBICACIONES ---
 const UBICACIONES_FISICAS = ['Proveedor','En tránsito','En tránsito a Daniel','Daniel','Pablo','Blue Mail','Tato','Tránsito a Bs As','Stock EEUU', 'Stock España', 'Stock Argentina']
 // Ubicaciones que implican posesión física, no estados de venta
 const DESTINOS = ['Stock EEUU', 'Stock España', 'Stock Argentina', 'Uso propio', 'Stock Internacional'] // Ajustado
-const PLATAFORMAS = ['eBay', 'MercadoLibre', 'Amazon', 'Wallapop', 'Facebook Marketplace', 'Web Directa']
 
-const MARCAS = [{ v: 'K', l: 'Kawasaki (K)' }, { v: 'Y', l: 'Yamaha (Y)' }, { v: 'S', l: 'Suzuki (S)' }, { v: 'H', l: 'Honda (H)' }, { v: 'HD', l: 'Harley-Davidson (HD)' }, { v: 'OTHER', l: 'Otra...' }]
-const SUBCODIGOS = [{ v: 'M', l: 'M – Motor' }, { v: 'C', l: 'C – Carbureción' }, { v: 'E', l: 'E – Electricidad' }, { v: 'T', l: 'T – Transmisión' }, { v: 'F', l: 'F – Frenos' }, { v: 'S', l: 'S – Suspensión/Chasis' }, { v: 'X', l: 'X – Carrocería' }, { v: 'I', l: 'I – Iluminación' }]
+const PLATAFORMAS = ['eBay', 'MercadoLibre', 'Amazon', 'Wallapop', 'Facebook Marketplace', 'Web Directa']
 
 interface ItemForm {
   id?: string
@@ -249,7 +250,7 @@ function NuevoForm() {
 
       // Lógica para determinar pendiente_compra
       // Es pendiente_compra si es una VENTA y NO ESTÁ EN STOCK FÍSICO (Proveedor, o algún Tránsito)
-      const isPendienteCompra = tipoCarga === 'Venta' && !['En Mano', 'Stock EEUU', 'Stock España', 'Stock Argentina'].includes(f.ubicacion);
+      const isPendienteCompra = tipoCarga === 'Venta' && ![...UBICACIONES_FISICAS.filter(u => !u.startsWith('En tránsito') && u !== 'Proveedor' && u !== 'En Mano')].includes(f.ubicacion);
 
 
       const payload: any = {
@@ -345,8 +346,8 @@ function NuevoForm() {
             {/* Botones de IA y Cotización (solo si no estamos editando) */}
             {!editId && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-                <BotonIA setF={setF} /> {/* Pasa setF para que pueda actualizar el formulario */}
-                <SelectorCotizacion setF={setF} /> {/* Pasa setF para que pueda actualizar el formulario */}
+                {/* <BotonIA setF={setF} /> */} {/* Comentado temporalmente */}
+                {/* <SelectorCotizacion setF={setF} /> */} {/* Comentado temporalmente */}
                 <a href="/dashboard/nuevo/importar" className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-bold text-center flex items-center justify-center">
                   📄 Importar de Factura (IA)
                 </a>
