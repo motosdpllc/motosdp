@@ -225,7 +225,7 @@ function NuevoForm() {
         setF(prev => ({ ...prev, ubicacion: 'En tránsito' }));
       } else {
         // Si no hay tracking, vuelve a proveedor (se acaba de comprar, no en stock físico)
-        setF(prev => ({ ...p, ubicacion: 'Proveedor' }));
+        setF(prev => ({ ...prev, ubicacion: 'Proveedor' }));
       }
     }
   }, [f.tracking_compra, editId]);
