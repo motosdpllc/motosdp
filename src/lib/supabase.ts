@@ -6,10 +6,10 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Types
-export type Ubicacion = 
+export type Ubicacion =
   | 'Proveedor' | 'En tránsito' | 'En tránsito a Daniel'
   | 'Daniel' | 'Pablo' | 'Blue Mail' | 'Tato'
-  | 'Tránsito a Bs As' | 'En Mano' | 'Vendido' | 'Cancelado'
+  | 'Tránsito a Bs As' | 'En Mano' | 'Stock EEUU' | 'Stock España' | 'Stock Argentina';
 
 export type Destino = 
   | 'Argentina' | 'Stock EEUU' | 'Uso propio' 
