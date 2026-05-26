@@ -3,12 +3,7 @@ import { useState, useRef, useEffect } from 'react'
 import { supabase, type Cliente, fmt } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
-import { FileText, Loader, X } from 'lucide-react'
-
-// Asegúrate de que tienes GOOGLE_API_KEY en tu .env.local
-// Si usas Anthropic (Claude), el endpoint y el formato de mensaje pueden ser diferentes.
-// Este ejemplo asume que tienes un endpoint /api/parse-invoice que usa la IA
-// y devuelve un JSON estructurado.
+import { FileText, Loader, CheckCircle, X } from 'lucide-react' // CheckCircle añadido aquí
 
 interface ItemImportado {
   producto: string;
