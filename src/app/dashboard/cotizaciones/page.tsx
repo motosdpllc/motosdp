@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase, fmt, fmtDate, getNextCounter } from '@/lib/supabase'
-import toast from 'react-hot-toast' // Asumiendo que usas react-hot-toast
+import toast from 'react-hot-toast'
 
 const MULTIPLICADOR = 1.11
 
@@ -12,7 +12,7 @@ interface CotizacionItem {
   cantidad: number
   codigo: string
   descripcion: string
-  peso_estimado: number
+  peso: number
   basoli: number
   partzilla: number
   otra: number
@@ -20,6 +20,7 @@ interface CotizacionItem {
   proveedor_elegido: 'basoli' | 'partzilla' | 'otra' | null
   proveedor_otro_nombre: string
   proveedor_otro_link: string
+  estado?: string // Agregado el estado aquí
 }
 
 interface Cotizacion {
@@ -50,14 +51,15 @@ const ITEM_VACIO: CotizacionItem = {
   cantidad: 1,
   codigo: '',
   descripcion: '',
-  peso_estimado: 0,
+  peso: 0,
   basoli: 0,
   partzilla: 0,
   otra: 0,
   precio_venta: 0,
   proveedor_elegido: null,
   proveedor_otro_nombre: '',
-  proveedor_otro_link: ''
+  proveedor_otro_link: '',
+  estado: 'activo' // Estado por defecto
 }
 
 const elegirMejorProveedor = (item: CotizacionItem): 'basoli' | 'partzilla' | 'otra' | null => {
@@ -113,8 +115,8 @@ export default function CotizacionesPage() {
   })
   const [enviandoWhatsapp, setEnviandoWhatsapp] = useState(false)
 
-  // Calculo el subtotal de todos los items
-  const subtotalItems = items.reduce((sum, item) => sum + (item.cantidad * item.precio_venta), 0)
+  // Calculo el subtotal de todos los items (SOLO ACTIVOS)
+  const subtotalItems = items.filter(item => item.estado !== 'cancelado').reduce((sum, item) => sum + (item.cantidad * item.precio_venta), 0)
 
   useEffect(() => {
     const cargar = async () => {
@@ -181,14 +183,15 @@ export default function CotizacionesPage() {
           cantidad: parseInt(cols[0]) || 1,
           codigo: cols[1]?.trim() || '',
           descripcion: cols[2]?.trim() || '',
-          peso_estimado: parseFloat(cols[3]) || 0,
+          peso: parseFloat(cols[3]) || 0,
           basoli: parseFloat(cols[4]) || 0,
           partzilla: parseFloat(cols[5]) || 0,
           otra: parseFloat(cols[6]) || 0,
           precio_venta: parseFloat(cols[7]) || 0,
           proveedor_elegido: null,
           proveedor_otro_nombre: '',
-          proveedor_otro_link: ''
+          proveedor_otro_link: '',
+          estado: 'activo' // Estado por defecto
         }
 
         nuevoItem.proveedor_elegido = elegirMejorProveedor(nuevoItem)
@@ -209,10 +212,8 @@ export default function CotizacionesPage() {
 
   const actualizarItem = (index: number, campo: keyof CotizacionItem, valor: any) => {
     const nuevoItems = [...items]
-    if (['peso_estimado', 'basoli', 'partzilla', 'otra', 'precio_venta'].includes(campo)) {
+    if (['peso', 'basoli', 'partzilla', 'otra', 'precio_venta', 'cantidad'].includes(campo)) {
       nuevoItems[index] = { ...nuevoItems[index], [campo]: parseFloat(valor) || 0 }
-    } else if (campo === 'cantidad') {
-      nuevoItems[index] = { ...nuevoItems[index], [campo]: parseInt(valor) || 0 }
     } else {
       nuevoItems[index] = { ...nuevoItems[index], [campo]: valor }
     }
@@ -234,14 +235,17 @@ export default function CotizacionesPage() {
   }
 
   const itemsOrdenados = () => {
-    const activos = items.filter(i => (i.codigo.trim() !== '' || i.descripcion.trim() !== '') && i.cantidad > 0)
-    const pendientes = items.filter(i => (i.codigo.trim() !== '' || i.descripcion.trim() !== '') && i.cantidad === 0)
+    // Solo consideramos items activos para los pedidos a proveedor y cálculo de PDF de cliente
+    const activos = items.filter(i => (i.codigo.trim() !== '' || i.descripcion.trim() !== '') && i.cantidad > 0 && i.estado === 'activo')
+    const pendientes = items.filter(i => (i.codigo.trim() !== '' || i.descripcion.trim() !== '') && i.cantidad === 0 && i.estado === 'activo')
+    const cancelados = items.filter(i => i.estado === 'cancelado')
 
     return {
       basoli: activos.filter(i => i.proveedor_elegido === 'basoli'),
       partzilla: activos.filter(i => i.proveedor_elegido === 'partzilla'),
       otra: activos.filter(i => i.proveedor_elegido === 'otra'),
-      pendientes
+      pendientes,
+      cancelados
     }
   }
 
@@ -295,14 +299,15 @@ export default function CotizacionesPage() {
       cantidad: i.cantidad || 1,
       codigo: i.codigo || '',
       descripcion: i.descripcion || '',
-      peso_estimado: i.peso_estimado || 0,
+      peso: i.peso || 0,
       basoli: i.basoli || 0,
       partzilla: i.partzilla || 0,
       otra: i.otra || 0,
       precio_venta: i.precio_venta || 0,
       proveedor_elegido: (i.proveedor_elegido as any) || null,
       proveedor_otro_nombre: i.proveedor_otro_nombre || '',
-      proveedor_otro_link: i.proveedor_otro_link || ''
+      proveedor_otro_link: i.proveedor_otro_link || '',
+      estado: i.estado || 'activo' // Cargar el estado
     })) as CotizacionItem[]
 
     while (itemsCargados.length < 30) {
@@ -363,9 +368,10 @@ export default function CotizacionesPage() {
           .map(i => ({
             cotizacion_id: cotizacionId,
             cantidad: i.cantidad, codigo: i.codigo, descripcion: i.descripcion,
-            peso_estimado: i.peso_estimado, basoli: i.basoli, partzilla: i.partzilla,
+            peso: i.peso, basoli: i.basoli, partzilla: i.partzilla,
             otra: i.otra, precio_venta: i.precio_venta, proveedor_elegido: i.proveedor_elegido,
-            proveedor_otro_nombre: i.proveedor_otro_nombre, proveedor_otro_link: i.proveedor_otro_link
+            proveedor_otro_nombre: i.proveedor_otro_nombre, proveedor_otro_link: i.proveedor_otro_link,
+            estado: i.estado // Guardar el estado
           }))
 
         if (itemsAGuardar.length > 0) {
@@ -423,7 +429,7 @@ export default function CotizacionesPage() {
   }
 
   const generarPDFCliente = () => {
-    const { basoli, partzilla, otra, pendientes } = itemsOrdenados() // Llamar aquí
+    const { basoli, partzilla, otra, pendientes, cancelados } = itemsOrdenados() // Incluimos cancelados
     const todosActivos = [...basoli, ...partzilla, ...otra]
 
     let filas = '', totalVenta = 0
@@ -448,6 +454,25 @@ export default function CotizacionesPage() {
         </tr>
       `
     })
+
+    // Filas para ítems cancelados (opcional, se pueden mostrar abajo o no mostrar)
+    let filasCancelados = '';
+    if (cancelados.length > 0) {
+      filasCancelados += `
+        <tr><td colspan="5" style="border: 1px solid #e0e0e0; padding: 10px; background-color: #fcebeb; font-weight: bold; text-align: center;">Ítems Cancelados/No disponibles</td></tr>
+      `;
+      cancelados.forEach(item => {
+        filasCancelados += `
+          <tr>
+            <td style="border: 1px solid #e0e0e0; padding: 10px; text-align: center;">${item.cantidad}</td>
+            <td style="border: 1px solid #e0e0e0; padding: 10px; font-family: 'Courier New', Courier, monospace; text-decoration: line-through;">${item.codigo}</td>
+            <td style="border: 1px solid #e0e0e0; padding: 10px; text-decoration: line-through;">${item.descripcion}</td>
+            <td colspan="2" style="border: 1px solid #e0e0e0; padding: 10px; text-align: center; color: #cc0000;">CANCELADO</td>
+          </tr>
+        `;
+      });
+    }
+
 
     const encabezadoTabla = mostrarPreciosIndividuales
       ? '<th>Precio Unit.</th><th>Subtotal</th>'
@@ -509,6 +534,7 @@ export default function CotizacionesPage() {
                   <td colspan="3" style="text-align: right;">SUBTOTAL DE ÍTEMS:</td>
                   <td colspan="2" style="text-align: right;">$${totalVenta.toFixed(2)}</td>
                 </tr>
+                ${filasCancelados}
               </tbody>
             </table>
 
@@ -974,6 +1000,13 @@ export default function CotizacionesPage() {
                 </p>
               </div>
             )}
+            {ordenados.cancelados.length > 0 && (
+              <div className="p-4 bg-red-50">
+                <p className="font-bold text-red-800">
+                  🚫 Ítems cancelados: {ordenados.cancelados.map(p => p.codigo).join(', ')}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* TABLA DE EDICIÓN INDIVIDUAL */}
@@ -994,13 +1027,14 @@ export default function CotizacionesPage() {
                   <th className="px-2 py-2 text-center font-bold">Prov</th>
                   <th className="px-2 py-2 text-center font-bold">Costo x 1.11</th>
                   <th className="px-2 py-2 text-center font-bold">Venta</th>
+                  <th className="px-2 py-2 text-center font-bold">Estado</th> {/* Nueva columna */}
                 </tr>
               </thead>
               <tbody>
                 {items.map((item, idx) => {
                   const costoConRecargo = calcularCostoConRecargo(item)
                   const esAlerta = esVentaMenor(item)
-                  const rowClass = esAlerta ? 'bg-red-200' : ''
+                  const rowClass = esAlerta ? 'bg-red-200' : item.estado === 'cancelado' ? 'bg-gray-100 text-gray-500 line-through' : ''
 
                   return (
                     <tr key={idx} className={`border-b ${rowClass}`}>
@@ -1010,6 +1044,7 @@ export default function CotizacionesPage() {
                           value={item.cantidad || ''}
                           onChange={e => actualizarItem(idx, 'cantidad', e.target.value)}
                           className="w-12 border rounded px-1 py-0.5 text-center text-sm"
+                          disabled={item.estado === 'cancelado'}
                         />
                       </td>
                       <td className="px-2 py-1">
@@ -1018,6 +1053,7 @@ export default function CotizacionesPage() {
                           value={item.codigo}
                           onChange={e => actualizarItem(idx, 'codigo', e.target.value)}
                           className="w-16 border rounded px-1 py-0.5 text-sm font-mono"
+                          disabled={item.estado === 'cancelado'}
                         />
                       </td>
                       <td className="px-2 py-1">
@@ -1028,15 +1064,17 @@ export default function CotizacionesPage() {
                           onClick={() => setItemActivoIndex(idx)}
                           className="w-32 border rounded px-1 py-0.5 text-sm cursor-pointer hover:bg-gray-100"
                           placeholder="Click para detalles..."
+                          disabled={item.estado === 'cancelado'}
                         />
                       </td>
                       <td className="px-2 py-1">
                         <input
                           type="number"
                           step="0.1"
-                          value={item.peso_estimado || ''}
-                          onChange={e => actualizarItem(idx, 'peso_estimado', e.target.value)}
+                          value={item.peso || ''}
+                          onChange={e => actualizarItem(idx, 'peso', parseFloat(e.target.value) || 0)}
                           className="w-14 border rounded px-1 py-0.5 text-center text-sm"
+                          disabled={item.estado === 'cancelado'}
                         />
                       </td>
                       <td className="px-2 py-1">
@@ -1044,8 +1082,9 @@ export default function CotizacionesPage() {
                           type="number"
                           step="0.01"
                           value={item.basoli || ''}
-                          onChange={e => actualizarItem(idx, 'basoli', e.target.value)}
+                          onChange={e => actualizarItem(idx, 'basoli', parseFloat(e.target.value) || 0)}
                           className="w-14 border rounded px-1 py-0.5 text-center text-sm bg-gray-50"
+                          disabled={item.estado === 'cancelado'}
                         />
                       </td>
                       <td className="px-2 py-1">
@@ -1053,8 +1092,9 @@ export default function CotizacionesPage() {
                           type="number"
                           step="0.01"
                           value={item.partzilla || ''}
-                          onChange={e => actualizarItem(idx, 'partzilla', e.target.value)}
+                          onChange={e => actualizarItem(idx, 'partzilla', parseFloat(e.target.value) || 0)}
                           className="w-14 border rounded px-1 py-0.5 text-center text-sm bg-gray-50"
+                          disabled={item.estado === 'cancelado'}
                         />
                       </td>
                       <td className="px-2 py-1">
@@ -1062,9 +1102,10 @@ export default function CotizacionesPage() {
                           type="number"
                           step="0.01"
                           value={item.otra || ''}
-                          onChange={e => actualizarItem(idx, 'otra', e.target.value)}
+                          onChange={e => actualizarItem(idx, 'otra', parseFloat(e.target.value) || 0)}
                           onClick={() => setItemActivoIndex(idx)}
                           className="w-14 border rounded px-1 py-0.5 text-center text-sm bg-purple-50 cursor-pointer hover:bg-purple-100 font-semibold text-purple-800"
+                          disabled={item.estado === 'cancelado'}
                         />
                       </td>
                       <td className="px-2 py-1">
@@ -1072,6 +1113,7 @@ export default function CotizacionesPage() {
                           value={item.proveedor_elegido || ''}
                           onChange={e => actualizarItem(idx, 'proveedor_elegido', e.target.value || null)}
                           className="w-16 border rounded px-1 py-0.5 text-center text-sm bg-blue-50 font-bold"
+                          disabled={item.estado === 'cancelado'}
                         >
                           <option value="">—</option>
                           <option value="basoli">Basoli</option>
@@ -1087,11 +1129,22 @@ export default function CotizacionesPage() {
                           type="number"
                           step="0.01"
                           value={item.precio_venta || ''}
-                          onChange={e => actualizarItem(idx, 'precio_venta', e.target.value)}
+                          onChange={e => actualizarItem(idx, 'precio_venta', parseFloat(e.target.value) || 0)}
                           className={`w-16 border rounded px-1 py-0.5 text-center text-sm font-bold ${
                             esAlerta ? 'bg-red-600 text-white border-red-700' : 'bg-green-50 text-green-700'
                           }`}
+                          disabled={item.estado === 'cancelado'}
                         />
+                      </td>
+                      <td className="px-2 py-1">
+                        <select
+                          value={item.estado || 'activo'}
+                          onChange={e => actualizarItem(idx, 'estado', e.target.value)}
+                          className={`w-20 border rounded px-1 py-0.5 text-center text-sm ${item.estado === 'cancelado' ? 'bg-red-100 text-red-700' : 'bg-gray-50'}`}
+                        >
+                          <option value="activo">Activo</option>
+                          <option value="cancelado">Cancelado</option>
+                        </select>
                       </td>
                     </tr>
                   )
@@ -1316,6 +1369,7 @@ export default function CotizacionesPage() {
                     type="text"
                     value={items[itemActivoIndex]?.descripcion || ''}
                     onChange={e => actualizarItem(itemActivoIndex, 'descripcion', e.target.value)}
+                    onClick={() => setItemActivoIndex(idx)}
                     className="w-full border rounded px-3 py-2 text-sm"
                   />
                 </div>
@@ -1325,8 +1379,8 @@ export default function CotizacionesPage() {
                   <input
                     type="number"
                     step="0.1"
-                    value={items[itemActivoIndex]?.peso_estimado || ''}
-                    onChange={e => actualizarItem(itemActivoIndex, 'peso_estimado', e.target.value)}
+                    value={items[itemActivoIndex]?.peso || ''}
+                    onChange={e => actualizarItem(itemActivoIndex, 'peso', parseFloat(e.target.value) || 0)}
                     className="w-full border rounded px-3 py-2 text-sm"
                   />
                 </div>
