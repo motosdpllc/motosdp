@@ -3,17 +3,15 @@ import { useState, useEffect, useCallback, Suspense, useRef } from 'react'
 import { supabase, fmt, getNextCounter, type Cliente } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import toast from 'react-hot-toast'
-import BotonIA from './BotonIA' // Descomentado
-import SelectorCotizacion from './SelectorCotizacion' // Descomentado
+import BotonIA from './BotonIA'
+import SelectorCotizacion from './SelectorCotizacion'
 
 const MARCAS = [{ v: 'K', l: 'Kawasaki (K)' }, { v: 'Y', l: 'Yamaha (Y)' }, { v: 'S', l: 'Suzuki (S)' }, { v: 'H', l: 'Honda (H)' }, { v: 'HD', l: 'Harley-Davidson (HD)' }, { v: 'OTHER', l: 'Otra...' }]
 const SUBCODIGOS = [{ v: 'M', l: 'M – Motor' }, { v: 'C', l: 'C – Carbureción' }, { v: 'E', l: 'E – Electricidad' }, { v: 'T', l: 'T – Transmisión' }, { v: 'F', l: 'F – Frenos' }, { v: 'S', l: 'S – Suspensión/Chasis' }, { v: 'X', l: 'X – Carrocería' }, { v: 'I', l: 'I – Iluminación' }]
 
 // --- NUEVAS UBICACIONES ---
-const UBICACIONES_FISICAS = ['Proveedor','En tránsito','En tránsito a Daniel','Daniel','Pablo','Blue Mail','Tato','Tránsito a Bs As','Stock EEUU', 'Stock España', 'Stock Argentina']
-// Ubicaciones que implican posesión física, no estados de venta
-const DESTINOS = ['Stock EEUU', 'Stock España', 'Stock Argentina', 'Uso propio', 'Stock Internacional'] // Ajustado
-
+const UBICACIONES_FISICAS = ['Proveedor','En tránsito','En tránsito a Daniel','Daniel','Pablo','Blue Mail','Tato','Tránsito a Bs As','Stock EEUU', 'Stock España', 'Stock Argentina', 'En Mano']
+const DESTINOS = ['Stock EEUU', 'Stock España', 'Stock Argentina', 'Uso propio', 'Stock Internacional']
 const PLATAFORMAS = ['eBay', 'MercadoLibre', 'Amazon', 'Wallapop', 'Facebook Marketplace', 'Web Directa']
 
 interface ItemForm {
@@ -45,12 +43,12 @@ interface ItemForm {
   cliente_id?: string
   cliente_nombre?: string
   ubicacion: string
-  destino: string // 'Stock' o 'Venta' se definirá aquí
-  estado_pago?: string // 'Saldado', 'Debe', 'Debemos'
+  destino: string
+  estado_pago?: string
   plataforma?: string
   link_publicacion?: string
-  codigo: string // El código auto-generado o manual
-  pendiente_compra?: boolean // Para el estado "Pendiente de comprar"
+  codigo: string
+  pendiente_compra?: boolean
 }
 
 const EMPTY_ITEM: ItemForm = {
@@ -75,30 +73,28 @@ function NuevoForm() {
   const searchParams = useSearchParams()
   
   const cliDropRef = useRef<HTMLDivElement>(null)
-  const cotDropRef = useRef<HTMLDivElement>(null) // Ref para SelectorCotizacion
+  const cotDropRef = useRef<HTMLDivElement>(null)
 
   const [clientes, setClientes] = useState<any[]>([])
   const [cotizaciones, setCotizaciones] = useState<any[]>([])
-  const [cliSearch, setCliSearch] = useState('') // Estado para buscar cliente, usado por SelectorCotizacion
+  const [cliSearch, setCliSearch] = useState('')
   const [showCliDrop, setShowCliDrop] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [loading, setLoading] = useState(false) // Declarado aquí
-  const [editId, setEditId] = useState<string | null>(null) // Declarado aquí
+  const [loading, setLoading] = useState(false)
+  const [editId, setEditId] = useState<string | null>(null)
   const [codigoDisplay, setCodigoDisplay] = useState('—')
 
-  const [tipoCarga, setTipoCarga] = useState<'Stock' | 'Venta'>('Stock') // 'Stock' o 'Venta'
+  const [tipoCarga, setTipoCarga] = useState<'Stock' | 'Venta'>('Stock')
   const [plataformasSeleccionadas, setPlataformasSeleccionadas] = useState<string[]>([])
 
   const [f, setF] = useState<ItemForm>(EMPTY_ITEM)
   const [calc, setCalc] = useState({ costo_total: 0, ganancia: 0, taxes11: 0 })
 
-  // Cargar clientes y cotizaciones al inicio
   useEffect(() => {
     supabase.from('clientes').select('id, nombre, telefono, provincia').order('nombre').then(({ data }) => setClientes(data || []))
     supabase.from('cotizaciones').select('*, cotizacion_items(*)').order('created_at', { ascending: false }).limit(20).then(({ data }) => setCotizaciones(data || []))
   }, [])
 
-  // Cargar item para edición
   useEffect(() => {
     const itemId = searchParams.get('edit')
     if (itemId) {
@@ -119,9 +115,8 @@ function NuevoForm() {
             producto: data.producto || '',
             codigo: data.codigo || '',
             ubicacion: data.ubicacion || 'Proveedor',
-            destino: data.destino === 'Vendido' ? 'Venta' : (data.destino || 'Stock EEUU'), // Ajuste para el switch
-            // Asegúrate que todos los campos del formulario estén presentes
-            marca_custom: '', // No guardado en DB, solo para UI
+            destino: data.destino === 'Vendido' ? 'Venta' : (data.destino || 'Stock EEUU'),
+            marca_custom: '',
             link_producto: data.link_producto || '',
             nro_orden: data.nro_orden || '',
             tracking_compra: data.tracking_compra || '',
@@ -140,11 +135,11 @@ function NuevoForm() {
             subcodigo: data.subcodigo || '',
             tipo_envio: data.tipo_envio || 'aereo',
             estado_pago: data.estado_pago || '',
-            pendiente_compra: data.pendiente_compra || false // Cargar el estado
+            pendiente_compra: data.pendiente_compra || false
           })
           setEditId(itemId)
           setCliSearch(data.cliente_nombre || '')
-          setTipoCarga(data.destino === 'Vendido' || data.cliente_id ? 'Venta' : 'Stock') // Ajustar el switch
+          setTipoCarga(data.destino === 'Vendido' || data.cliente_id ? 'Venta' : 'Stock')
           if (data.plataforma) setPlataformasSeleccionadas(data.plataforma.split(', '))
         } else if (error) {
           toast.error('Error al cargar ítem: ' + error.message)
@@ -154,14 +149,13 @@ function NuevoForm() {
       }
       loadItem()
     } else {
-      setF(EMPTY_ITEM) // Resetea el formulario si no hay editId
+      setF(EMPTY_ITEM)
       setEditId(null)
-      setTipoCarga('Stock') // Reinicia el switch
+      setTipoCarga('Stock')
       setPlataformasSeleccionadas([])
     }
   }, [searchParams])
 
-  // Generar código automático
   const generarCodigo = useCallback(() => {
     const { marca, anio, modelo, subcodigo } = f
     const finalMarca = (marca === 'OTHER' && f.marca_custom) ? f.marca_custom.substring(0, 3).toUpperCase() : (marca ? marca.substring(0, 3).toUpperCase() : '')
@@ -175,56 +169,41 @@ function NuevoForm() {
     return ''
   }, [f.marca, f.marca_custom, f.anio, f.modelo, f.subcodigo])
 
-  // Actualizar código si cambian los campos relevantes
   useEffect(() => {
-    if (!editId && f.marca && f.anio && f.modelo && f.subcodigo) { // Solo auto-generar en nuevos ítems, no en edición
-      setF(p => ({ ...p, codigo: generarCodigo() }));
+    if (!editId && f.marca && f.anio && f.modelo && f.subcodigo) {
+      setF(prev => ({ ...prev, codigo: generarCodigo() }));
     }
   }, [f.marca, f.marca_custom, f.anio, f.modelo, f.subcodigo, generarCodigo, editId]);
 
-  // Actualizar display de código
   useEffect(() => {
     setCodigoDisplay(f.codigo || '—');
   }, [f.codigo]);
 
-
-  // Calcular costos y ganancias
   useEffect(() => {
-    const imp = f.importe || 0
-    const env = f.costo_envio || 0
-    const tax = f.taxes || 0
-    const ree = f.reembolsos || 0
-    const ven = f.precio_venta || 0
-
-    const taxes11 = imp * 0.11 // Cálculo de taxes11 aquí
+    const imp = f.importe || 0, env = f.costo_envio || 0, tax = f.taxes || 0, ree = f.reembolsos || 0, ven = f.precio_venta || 0
+    const taxes11 = imp * 0.11
     const costo = imp + taxes11 + env + tax - ree
     setCalc({ costo_total: costo, ganancia: ven - costo, taxes11 })
   }, [f.importe, f.costo_envio, f.taxes, f.reembolsos, f.precio_venta])
 
-  // Lógica de cálculo de costo de envío según peso/dimensiones
   useEffect(() => {
     if (f.tipo_envio === 'aereo') {
       const p = f.peso || 0
       if (p > 0) setF(prev => ({ ...prev, costo_envio: parseFloat((p * 50).toFixed(2)) }))
       else setF(prev => ({ ...prev, costo_envio: 0 }))
     } else if (f.tipo_envio === 'barco') {
-      const l = f.largo || 0
-      const a = f.ancho || 0
-      const h = f.alto || 0
+      const l = f.largo || 0, a = f.ancho || 0, h = f.alto || 0
       if (l > 0 && a > 0 && h > 0) setF(prev => ({ ...prev, costo_envio: parseFloat((((l * a * h) / 1000000) * 3000).toFixed(2)) }))
-     else setF(prev => ({ ...prev, costo_envio: 0 }))
+      else setF(prev => ({ ...prev, costo_envio: 0 }))
     }
   }, [f.peso, f.largo, f.ancho, f.alto, f.tipo_envio])
 
-  // Lógica de automatización de ubicación según tracking
+  // Lógica de automatización de ubicación según tracking (corregido prev)
   useEffect(() => {
-    // Si no estamos editando (es un item nuevo)
     if (!editId) {
       if (f.tracking_compra && f.tracking_compra.trim() !== '') {
-        // Si hay tracking, asumimos que está en tránsito
         setF(prev => ({ ...prev, ubicacion: 'En tránsito' }));
       } else {
-        // Si no hay tracking, vuelve a proveedor (se acaba de comprar, no en stock físico)
         setF(prev => ({ ...prev, ubicacion: 'Proveedor' }));
       }
     }
@@ -249,9 +228,9 @@ function NuevoForm() {
     try {
       const platFinal = plataformasSeleccionadas.length > 0 ? plataformasSeleccionadas.join(', ') : null
 
-      // Lógica para determinar pendiente_compra
-      // Es pendiente_compra si es una VENTA y NO ESTÁ EN STOCK FÍSICO (Proveedor, o algún Tránsito)
-      const isPendienteCompra = tipoCarga === 'Venta' && !['En Mano', 'Stock EEUU', 'Stock España', 'Stock Argentina'].includes(f.ubicacion);
+      // Lógica para determinar pendiente_compra (CORREGIDA)
+      // Es pendiente_compra si es una VENTA Y NO TIENE FECHA DE COMPRA (aún no se compró)
+      const isPendienteCompra = tipoCarga === 'Venta' && (!f.fecha_compra || f.fecha_compra.trim() === '');
 
 
       const payload: any = {
@@ -347,8 +326,8 @@ function NuevoForm() {
             {/* Botones de IA y Cotización (solo si no estamos editando) */}
             {!editId && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-                {/* <BotonIA setF={setF} /> */} {/* Comentado temporalmente */}
-                {/* <SelectorCotizacion setF={setF} /> */} {/* Comentado temporalmente */}
+                <BotonIA setF={setF} />
+                <SelectorCotizacion cotizaciones={cotizaciones} setF={setF} setCliSearch={setCliSearch} cotDropRef={cotDropRef} />
                 <a href="/dashboard/nuevo/importar" className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-bold text-center flex items-center justify-center">
                   📄 Importar de Factura (IA)
                 </a>
