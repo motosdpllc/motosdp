@@ -19,13 +19,13 @@ export default function DashboardPage() {
     const cargar = async () => {
       try {
         setLoading(true)
-        const hoy = new Date().toISOString().split('T')[0]
-
+        // Ajustado para contar todos los que no están "vendidos" o "cancelados"
         const { data } = await supabase
           .from('items')
           .select('ubicacion')
-          .gte('fecha_compra', hoy)
-          .lte('fecha_compra', hoy + 'T23:59:59')
+          .not('ubicacion', 'eq', 'Vendido')
+          .not('ubicacion', 'eq', 'Cancelado')
+
 
         const estadosConfig: { [key: string]: { icon: string; color: string; textColor: string } } = {
           'Proveedor': { icon: '🏭', color: 'bg-blue-500', textColor: 'text-blue-600' },
@@ -37,11 +37,9 @@ export default function DashboardPage() {
           'Tato': { icon: '👤', color: 'bg-cyan-500', textColor: 'text-cyan-600' },
           'Tránsito a Bs As': { icon: '✈️', color: 'bg-green-500', textColor: 'text-green-600' },
           'En Mano': { icon: '✋', color: 'bg-emerald-500', textColor: 'text-emerald-600' },
-          'Entregado': { icon: '$', color: 'bg-emerald-500', textColor: 'text-emerald-600' },
           'Stock EEUU': { icon: '🇺🇸', color: 'bg-red-500', textColor: 'text-red-600' },
           'Stock España': { icon: '🇪🇸', color: 'bg-orange-500', textColor: 'text-orange-600' },
           'Stock Argentina': { icon: '🇦🇷', color: 'bg-lime-500', textColor: 'text-lime-600' },
-        }
         }
 
         const contador: { [key: string]: number } = {}
@@ -79,16 +77,23 @@ export default function DashboardPage() {
     )
   }
 
-  const totalItems = estados.reduce((sum, est) => sum + est.count, 0)
+  const totalItemsEnStock = estados.reduce((sum, est) => sum + est.count, 0)
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-5xl font-bold text-gray-800 mb-2">📊 Dashboard Hoy</h1>
-          <p className="text-gray-600 text-lg">{new Date().toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+          <h1 className="text-5xl font-bold text-gray-800 mb-2">📊 Dashboard Actual</h1>
+          <p className="text-gray-600 text-lg">Estado de tu inventario al día de hoy: <span className="font-semibold">{new Date().toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span></p>
         </div>
 
+        {/* TOTAL EN STOCK */}
+        <div className="mb-8 p-8 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg shadow-lg">
+          <p className="text-xl opacity-90">Total de productos en Stock / Tránsito</p>
+          <p className="text-6xl font-bold">{totalItemsEnStock}</p>
+        </div>
+
+        {/* ESTADOS */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
           {estados.map(est => (
             <div
@@ -102,9 +107,9 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {totalItems === 0 && (
+        {totalItemsEnStock === 0 && (
           <div className="text-center py-16">
-            <p className="text-gray-500 text-xl">No hay productos hoy</p>
+            <p className="text-gray-500 text-xl">No hay productos en stock o en tránsito.</p>
           </div>
         )}
       </div>
