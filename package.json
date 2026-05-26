@@ -16,7 +16,8 @@
     "react-hot-toast": "^2.4.1",
     "html2pdf.js": "^0.10.1",
     "lucide-react": "^0.363.0",
-    "@zxing/library": "^0.21.3"
+    "@zxing/library": "^0.21.3",
+    "@google/generative-ai": "^0.11.0"  
   },
   "devDependencies": {
     "@types/html2pdf.js": "^0.10.0",
