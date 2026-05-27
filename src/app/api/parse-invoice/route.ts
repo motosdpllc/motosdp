@@ -5,7 +5,6 @@ const API_KEY = process.env.GOOGLE_API_KEY;
 
 if (!API_KEY) {
   console.error("GOOGLE_API_KEY no está configurada en el servidor.");
-  // Devuelve un error si la clave no está presente
   throw new Error('GOOGLE_API_KEY no está configurada.');
 }
 
@@ -19,7 +18,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Falta el archivo o el tipo de medio.' }, { status: 400 });
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
+    // --- CAMBIO AQUÍ: Nombre del modelo más específico ---
+    const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro-vision-latest" }); 
+    // Si este falla, también podríamos intentar "gemini-1.0-pro-vision"
 
     const prompt = [
       {
