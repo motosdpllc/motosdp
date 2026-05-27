@@ -140,7 +140,7 @@ function NuevoForm() {
           })
           setEditId(itemId)
           setCliSearch(data.cliente_nombre || '')
-          setTipoCarga(data.destino === 'Vendido' || data.cliente_id ? 'Venta' : 'Stock')
+          setTipoCarga(data.destino && data.destino.startsWith('Venta') || data.cliente_id ? 'Venta' : 'Stock')
           if (data.plataforma) setPlataformasSeleccionadas(data.plataforma.split(', '))
         } else if (error) {
           toast.error('Error al cargar ítem: ' + error.message)
@@ -157,7 +157,7 @@ function NuevoForm() {
     }
   }, [searchParams])
 
-  // Lógica de generación de código (prioriza OEM)
+  // Lógica de generación de código sugerido
   const generarCodigoSugerido = useCallback(() => {
     const { marca, anio, modelo, subcodigo } = f
     const finalMarca = (marca === 'OTHER' && f.marca_custom) ? f.marca_custom.substring(0, 3).toUpperCase() : (marca ? marca.substring(0, 3).toUpperCase() : '')
@@ -171,9 +171,9 @@ function NuevoForm() {
     return ''
   }, [f.marca, f.marca_custom, f.anio, f.modelo, f.subcodigo])
 
+  // Actualización del código (Prioridad: OEM > Sugerido)
   useEffect(() => {
-    // Si hay OEM, el código es el OEM. Si no, usa el sugerido.
-    if (f.oem) {
+    if (f.oem && f.oem.trim() !== '') {
       setF(p => ({ ...p, codigo: f.oem }));
       setCodigoDisplay(f.oem);
     } else {
@@ -185,7 +185,7 @@ function NuevoForm() {
 
 
   useEffect(() => {
-    const imp = f.importe || 0, env = f.costo_envio || 0, tax = f.taxes || 0, ree = f.reembolsos || 0, ven = f.precio_venta || 0
+    const imp = f.importe || 0, env = f.costo_envio || 0, tax = f.taxes || 0, ree = f.reembolsos || 0, ven = parseFloat(f.precio_venta as any) || 0
     const taxes11 = imp * 0.11
     const costo = imp + taxes11 + env + tax - ree
     setCalc({ costo_total: costo, ganancia: ven - costo, taxes11 })
@@ -205,7 +205,8 @@ function NuevoForm() {
 
   // Lógica de automatización de ubicación según destino y tracking (CORREGIDA)
   useEffect(() => {
-    if (!editId) { // Solo auto-asignar en ítems nuevos
+    // Solo auto-asignar en ítems nuevos o si cambia el destino/tracking_compra
+    if (!editId || (f.destino && f.tracking_compra)) {
       if (f.destino === 'Venta Argentina') {
         setF(prev => ({ ...prev, ubicacion: (f.tracking_compra && f.tracking_compra.trim() !== '') ? 'En tránsito' : 'Proveedor' }));
       } else if (f.destino === 'Venta Internacional') {
@@ -420,4 +421,171 @@ function NuevoForm() {
                 </div>
                 <div>
                   <label className="block text-sm font-bold mb-1">Importe Producto (USD)</label>
-                  <input type="number" step="0.01" value={f.importe} onChange={e =>
+                  <input type="number" step="0.01" value={f.importe} onChange={e => setF(p => ({ ...p, importe: parseFloat(e.target.value) || 0 }))} className="w-full border rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-1">Taxes 11% (Calculado)</label>
+                  <p className="w-full bg-gray-100 border rounded px-3 py-2 font-bold text-gray-800">{fmt(calc.taxes11)}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-1">Peso (kg)</label>
+                  <input type="number" step="0.1" value={f.peso} onChange={e => setF(p => ({ ...p, peso: parseFloat(e.target.value) || 0 }))} className="w-full border rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-1">Tipo Envío</label>
+                  <select value={f.tipo_envio} onChange={e => setF(p => ({ ...p, tipo_envio: e.target.value }))} className="w-full border rounded px-3 py-2">
+                    <option value="aereo">Aéreo ($50/kg)</option>
+                    <option value="barco">Barco</option>
+                  </select>
+                </div>
+                {f.tipo_envio === 'barco' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-bold mb-1">Largo (cm)</label>
+                      <input type="number" step="0.1" value={f.largo || ''} onChange={e => setF(p => ({ ...p, largo: parseFloat(e.target.value) || 0 }))} className="w-full border rounded px-3 py-2" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold mb-1">Ancho (cm)</label>
+                      <input type="number" step="0.1" value={f.ancho || ''} onChange={e => setF(p => ({ ...p, ancho: parseFloat(e.target.value) || 0 }))} className="w-full border rounded px-3 py-2" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold mb-1">Alto (cm)</label>
+                      <input type="number" step="0.1" value={f.alto || ''} onChange={e => setF(p => ({ ...p, alto: parseFloat(e.target.value) || 0 }))} className="w-full border rounded px-3 py-2" />
+                    </div>
+                  </>
+                )}
+                <div>
+                  <label className="block text-sm font-bold mb-1">Costo Envío (USD)</label>
+                  <input type="number" step="0.01" value={f.costo_envio} onChange={e => setF(p => ({ ...p, costo_envio: parseFloat(e.target.value) || 0 }))} className="w-full border rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-1">Taxes EEUU</label>
+                  <input type="number" step="0.01" value={f.taxes} onChange={e => setF(p => ({ ...p, taxes: parseFloat(e.target.value) || 0 }))} className="w-full border rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-1">Reembolsos</label>
+                  <input type="number" step="0.01" value={f.reembolsos} onChange={e => setF(p => ({ ...p, reembolsos: parseFloat(e.target.value) || 0 }))} className="w-full border rounded px-3 py-2" />
+                </div>
+              </div>
+              <div className="mt-6 col-span-full text-right">
+                <label className="block text-lg font-bold mb-1">COSTO TOTAL (USD)</label>
+                <p className="w-full bg-blue-200 border border-blue-400 rounded px-4 py-2 text-2xl font-bold text-blue-800">{fmt(calc.costo_total)}</p>
+              </div>
+            </div>
+
+            {/* Sección de Tracking */}
+            <div className="bg-green-50 p-6 rounded-lg mb-8 border border-green-200">
+              <h2 className="text-xl font-bold mb-4 text-green-800">📦 Tracking y Ubicación</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold mb-1">Nro. Orden</label>
+                  <input type="text" value={f.nro_orden || ''} onChange={e => setF(p => ({ ...p, nro_orden: e.target.value }))} className="w-full border rounded px-3 py-2" placeholder="Número de orden de compra" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-1">Tracking Compra</label>
+                  <input type="text" value={f.tracking_compra || ''} onChange={e => setF(p => ({ ...p, tracking_compra: e.target.value }))} className="w-full border rounded px-3 py-2" placeholder="Número de tracking" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-1">Link Tracking Compra</label>
+                  <a href={generarParcelsAppLink(f.tracking_compra)} target="_blank" rel="noopener noreferrer" className="w-full border rounded px-3 py-2 text-blue-600 hover:underline block">
+                    {generarParcelsAppLink(f.tracking_compra).length > 20 ? generarParcelsAppLink(f.tracking_compra).substring(0, 20) + '...' : generarParcelsAppLink(f.tracking_compra)} 🔗
+                  </a>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-1">ETA (YYYY-MM-DD)</label>
+                  <input type="date" value={f.eta || ''} onChange={e => setF(p => ({ ...p, eta: e.target.value }))} className="w-full border rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-1">Ubicación Física</label>
+                  <select value={f.ubicacion} onChange={e => setF(p => ({ ...p, ubicacion: e.target.value }))} className="w-full border rounded px-3 py-2">
+                    {UBICACIONES_FISICAS.map(u => (<option key={u} value={u}>{u}</option>))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-1">Destino Final</label>
+                  <select value={f.destino} onChange={e => setF(p => ({ ...p, destino: e.target.value }))} className="w-full border rounded px-3 py-2">
+                    {DESTINOS_FINALES.map(d => (<option key={d} value={d}>{d}</option>))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Sección de Venta y Publicación (condicional) */}
+            {tipoCarga === 'Venta' && (
+              <div className="bg-yellow-50 p-6 rounded-lg mb-8 border border-yellow-200">
+                <h2 className="text-xl font-bold mb-4 text-yellow-800">💰 Detalles de Venta</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold mb-1">Precio de Venta (USD)</label>
+                    <input type="number" step="0.01" value={f.precio_venta || ''} onChange={e => setF(p => ({ ...p, precio_venta: parseFloat(e.target.value) || 0 }))} className="w-full border rounded px-3 py-2" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold mb-1">Ganancia Calculada</label>
+                    <p className={`w-full bg-gray-100 border rounded px-3 py-2 text-lg font-bold ${calc.ganancia >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {f.precio_venta ? (calc.ganancia >= 0 ? '+' : '') + fmt(calc.ganancia) : '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold mb-1">Estado de Pago</label>
+                    <select value={f.estado_pago || ''} onChange={e => setF(p => ({ ...p, estado_pago: e.target.value }))} className="w-full border rounded px-3 py-2">
+                      <option value="">— Sin definir —</option>
+                      <option value="Saldado">Saldado</option>
+                      <option value="Debe">Debe</option>
+                      <option value="Debemos">Debemos</option>
+                    </select>
+                  </div>
+                  <div className="relative">
+                    <label className="block text-sm font-bold mb-1">Cliente Asignado *</label>
+                    <input type="text" value={cliSearch} onChange={e => { setCliSearch(e.target.value); setShowCliDrop(true); if (!e.target.value) setF(p => ({ ...p, cliente_id: undefined, cliente_nombre: undefined })) }} onFocus={() => { if (cliSearch) setShowCliDrop(true) }} className="w-full border rounded px-3 py-2" placeholder="Buscar cliente..." />
+                    {showCliDrop && filtCli.length > 0 && (
+                      <div ref={cliDropRef} className="absolute top-full left-0 right-0 bg-white border rounded mt-1 shadow-lg z-10 max-h-48 overflow-y-auto">
+                        {filtCli.map((c: Cliente) => (
+                          <button key={c.id} type="button" onClick={e => { e.preventDefault(); setF(p => ({ ...p, cliente_id: c.id, cliente_nombre: c.nombre })); setCliSearch(c.nombre); setShowCliDrop(false) }} className="w-full text-left px-4 py-2 hover:bg-gray-50 border-b last:border-b-0">
+                            {c.nombre}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-6">
+                  <h3 className="text-md font-bold mb-3">🌐 Plataformas de Publicación</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    {PLATAFORMAS.map(p => (
+                      <label key={p} className="flex items-center gap-2">
+                        <input type="checkbox" checked={plataformasSeleccionadas.includes(p)} onChange={() => handleCheckboxPlataforma(p)} className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4" />
+                        {p}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="mt-4">
+                    <label className="block text-sm font-bold mb-1">Link Publicación (URL)</label>
+                    <input type="text" value={f.link_publicacion || ''} onChange={e => setF(p => ({ ...p, link_publicacion: e.target.value }))} className="w-full border rounded px-3 py-2" placeholder="URL de la publicación" />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-4 mt-8">
+              <button type="button" onClick={() => router.push('/dashboard/inventario')} className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-bold">
+                Cancelar
+              </button>
+              <button type="submit" disabled={saving || loading} className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold disabled:opacity-50">
+                {saving ? 'Guardando...' : editId ? 'Actualizar Ítem' : 'Crear Ítem'}
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default function NuevoPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-center">Cargando...</div>}>
+      <NuevoForm />
+    </Suspense>
+  )
+}
