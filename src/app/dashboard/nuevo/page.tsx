@@ -9,7 +9,7 @@ import SelectorCotizacion from './SelectorCotizacion'
 const MARCAS = [{ v: 'K', l: 'Kawasaki (K)' }, { v: 'Y', l: 'Yamaha (Y)' }, { v: 'S', l: 'Suzuki (S)' }, { v: 'H', l: 'Honda (H)' }, { v: 'HD', l: 'Harley-Davidson (HD)' }, { v: 'OTHER', l: 'Otra...' }]
 const SUBCODIGOS = [{ v: 'M', l: 'M – Motor' }, { v: 'C', l: 'C – Carbureción' }, { v: 'E', l: 'E – Electricidad' }, { v: 'T', l: 'T – Transmisión' }, { v: 'F', l: 'F – Frenos' }, { v: 'S', l: 'S – Suspensión/Chasis' }, { v: 'X', l: 'X – Carrocería' }, { v: 'I', l: 'I – Iluminación' }]
 
-// --- NUEVAS UBICACIONES Y DESTINOS CON LA LÓGICA CLARIFICADA ---
+// --- NUEVAS UBICACIONES ---
 const UBICACIONES_FISICAS = ['Proveedor','En tránsito','En tránsito a Daniel','Daniel','Pablo','Blue Mail','Tato','Tránsito a Bs As','Stock EEUU', 'Stock España', 'Stock Argentina', 'En Mano', 'Entregado']
 const DESTINOS_FINALES = ['Stock EEUU', 'Stock España', 'Stock Argentina', 'Venta Argentina', 'Venta Internacional', 'Uso Propio', 'Stock Internacional']
 
@@ -116,7 +116,7 @@ function NuevoForm() {
             producto: data.producto || '',
             codigo: data.codigo || '',
             ubicacion: data.ubicacion || 'Proveedor',
-            destino: data.destino === 'Vendido' ? 'Venta Argentina' : (data.destino || 'Stock EEUU'), // Ajuste para el switch
+            destino: data.destino === 'Vendido' ? 'Venta Argentina' : (data.destino || 'Stock EEUU'),
             marca_custom: '',
             link_producto: data.link_producto || '',
             nro_orden: data.nro_orden || '',
@@ -157,7 +157,6 @@ function NuevoForm() {
     }
   }, [searchParams])
 
-  // Lógica de generación de código sugerido
   const generarCodigoSugerido = useCallback(() => {
     const { marca, anio, modelo, subcodigo } = f
     const finalMarca = (marca === 'OTHER' && f.marca_custom) ? f.marca_custom.substring(0, 3).toUpperCase() : (marca ? marca.substring(0, 3).toUpperCase() : '')
@@ -171,14 +170,13 @@ function NuevoForm() {
     return ''
   }, [f.marca, f.marca_custom, f.anio, f.modelo, f.subcodigo])
 
-  // Actualización del código (Prioridad: OEM > Sugerido)
   useEffect(() => {
     if (f.oem && f.oem.trim() !== '') {
-      setF(p => ({ ...p, codigo: f.oem }));
+      setF(p => ({ ...p, codigo: f.oem || '' })); // Aseguramos que sea string
       setCodigoDisplay(f.oem);
     } else {
       const sugerido = generarCodigoSugerido();
-      setF(p => ({ ...p, codigo: sugerido }));
+      setF(p => ({ ...p, codigo: sugerido || '' })); // Aseguramos que sea string
       setCodigoDisplay(sugerido || '—');
     }
   }, [f.oem, f.marca, f.marca_custom, f.anio, f.modelo, f.subcodigo, generarCodigoSugerido]);
@@ -203,21 +201,15 @@ function NuevoForm() {
     }
   }, [f.peso, f.largo, f.ancho, f.alto, f.tipo_envio])
 
-  // Lógica de automatización de ubicación según destino y tracking (CORREGIDA)
   useEffect(() => {
-    // Solo auto-asignar en ítems nuevos o si cambia el destino/tracking_compra
-    if (!editId || (f.destino && f.tracking_compra)) {
-      if (f.destino === 'Venta Argentina') {
-        setF(prev => ({ ...prev, ubicacion: (f.tracking_compra && f.tracking_compra.trim() !== '') ? 'En tránsito' : 'Proveedor' }));
-      } else if (f.destino === 'Venta Internacional') {
-        setF(prev => ({ ...prev, ubicacion: 'En Mano' })); // Por defecto En Mano para venta internacional
-      } else if (f.tracking_compra && f.tracking_compra.trim() !== '') {
+    if (!editId) {
+      if (f.tracking_compra && f.tracking_compra.trim() !== '') {
         setF(prev => ({ ...prev, ubicacion: 'En tránsito' }));
       } else {
         setF(prev => ({ ...prev, ubicacion: 'Proveedor' }));
       }
     }
-  }, [f.destino, f.tracking_compra, editId]);
+  }, [f.tracking_compra, editId]);
 
 
   const handleCheckboxPlataforma = (plat: string) => {
@@ -242,8 +234,6 @@ function NuevoForm() {
     try {
       const platFinal = plataformasSeleccionadas.length > 0 ? plataformasSeleccionadas.join(', ') : null
 
-      // Lógica para determinar pendiente_compra (CORREGIDA por tu aclaración)
-      // Es pendiente_compra si es una VENTA Y NO TIENE FECHA DE COMPRA (aún no se compró/adquirió)
       const isPendienteCompra = tipoCarga === 'Venta' && (!f.fecha_compra || f.fecha_compra.trim() === '');
 
 
@@ -258,7 +248,7 @@ function NuevoForm() {
         oem: f.oem || null,
         nro_orden: f.nro_orden || null,
         tracking_compra: f.tracking_compra || null,
-        link_tracking_compra: generarParcelsAppLink(f.tracking_compra), // Genera el link aquí
+        link_tracking_compra: generarParcelsAppLink(f.tracking_compra),
         eta: f.eta || null,
         link_producto: f.link_producto || null,
         importe: f.importe,
@@ -270,18 +260,18 @@ function NuevoForm() {
         costo_envio: f.costo_envio,
         taxes: f.taxes,
         reembolsos: f.reembolsos,
-        costo_total: calc.costo_total, // GUARDADO: Costo total calculado
+        costo_total: calc.costo_total,
         precio_venta: f.precio_venta || null,
         ganancia: f.precio_venta ? calc.ganancia : null,
         cliente_id: tipoCarga === 'Venta' ? f.cliente_id : null,
         cliente_nombre: tipoCarga === 'Venta' ? f.cliente_nombre : null,
         ubicacion: f.ubicacion,
-        destino: tipoCarga === 'Venta' ? (f.destino === 'Venta Argentina' ? 'Venta Argentina' : 'Venta Internacional') : f.destino, // 'Venta Argentina' o 'Venta Internacional' si es venta, sino el destino de stock
+        destino: tipoCarga === 'Venta' ? (f.destino && f.destino.startsWith('Venta') ? f.destino : 'Venta Argentina') : f.destino,
         estado_pago: f.estado_pago || null,
         plataforma: platFinal,
         link_publicacion: f.link_publicacion || null,
         updated_at: new Date().toISOString(),
-        pendiente_compra: isPendienteCompra // Guardar el estado de "Pendiente de Compra"
+        pendiente_compra: isPendienteCompra
       }
 
       if (editId) {
@@ -300,7 +290,6 @@ function NuevoForm() {
     }
   }
 
-  // Handle click outside for dropdowns
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (cliDropRef.current && !cliDropRef.current.contains(event.target as Node)) {
@@ -323,7 +312,6 @@ function NuevoForm() {
           </button>
         </div>
 
-        {/* INTERRUPTOR INTELIGENTE DE FLUJO */}
         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg flex justify-center gap-4 mb-8">
           <button onClick={() => { setTipoCarga('Stock'); setF(p => ({ ...p, destino: 'Stock EEUU', ubicacion: 'Proveedor', cliente_id: undefined, cliente_nombre: undefined, precio_venta: undefined, estado_pago: undefined, pendiente_compra: false })) }} className={`px-6 py-2 rounded-lg font-medium text-sm transition-all ${tipoCarga === 'Stock' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>
             📦 Carga para Stock Directo
@@ -337,7 +325,6 @@ function NuevoForm() {
           <p className="text-center text-lg text-gray-600 py-10">Cargando ítem...</p>
         ) : (
           <form onSubmit={guardar}>
-            {/* Botones de IA y Cotización (solo si no estamos editando) */}
             {!editId && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                 <BotonIA setF={setF} />
@@ -349,7 +336,6 @@ function NuevoForm() {
             )}
 
 
-            {/* Sección de Información Básica */}
             <div className="bg-gray-50 p-6 rounded-lg mb-8 border border-gray-200">
               <h2 className="text-xl font-bold mb-4 text-gray-800">Básicos del Ítem</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
