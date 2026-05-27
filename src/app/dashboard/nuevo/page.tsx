@@ -9,9 +9,9 @@ import SelectorCotizacion from './SelectorCotizacion'
 const MARCAS = [{ v: 'K', l: 'Kawasaki (K)' }, { v: 'Y', l: 'Yamaha (Y)' }, { v: 'S', l: 'Suzuki (S)' }, { v: 'H', l: 'Honda (H)' }, { v: 'HD', l: 'Harley-Davidson (HD)' }, { v: 'OTHER', l: 'Otra...' }]
 const SUBCODIGOS = [{ v: 'M', l: 'M – Motor' }, { v: 'C', l: 'C – Carbureción' }, { v: 'E', l: 'E – Electricidad' }, { v: 'T', l: 'T – Transmisión' }, { v: 'F', l: 'F – Frenos' }, { v: 'S', l: 'S – Suspensión/Chasis' }, { v: 'X', l: 'X – Carrocería' }, { v: 'I', l: 'I – Iluminación' }]
 
-// --- NUEVAS UBICACIONES ---
-const UBICACIONES_FISICAS = ['Proveedor','En tránsito','En tránsito a Daniel','Daniel','Pablo','Blue Mail','Tato','Tránsito a Bs As','Stock EEUU', 'Stock España', 'Stock Argentina', 'En Mano', 'Entregado'] // Agregado Entregado
-const DESTINOS = ['Stock EEUU', 'Stock España', 'Stock Argentina', 'Uso propio', 'Stock Internacional']
+// --- NUEVAS UBICACIONES Y DESTINOS CON LA LÓGICA CLARIFICADA ---
+const UBICACIONES_FISICAS = ['Proveedor','En tránsito','En tránsito a Daniel','Daniel','Pablo','Blue Mail','Tato','Tránsito a Bs As','Stock EEUU', 'Stock España', 'Stock Argentina', 'En Mano', 'Entregado']
+const DESTINOS_FINALES = ['Stock EEUU', 'Stock España', 'Stock Argentina', 'Venta Argentina', 'Venta Internacional', 'Uso Propio', 'Stock Internacional']
 
 const PLATAFORMAS = ['eBay', 'MercadoLibre', 'Amazon', 'Wallapop', 'Facebook Marketplace', 'Web Directa']
 
@@ -116,7 +116,7 @@ function NuevoForm() {
             producto: data.producto || '',
             codigo: data.codigo || '',
             ubicacion: data.ubicacion || 'Proveedor',
-            destino: data.destino === 'Vendido' ? 'Venta' : (data.destino || 'Stock EEUU'),
+            destino: data.destino === 'Vendido' ? 'Venta Argentina' : (data.destino || 'Stock EEUU'), // Ajuste para el switch
             marca_custom: '',
             link_producto: data.link_producto || '',
             nro_orden: data.nro_orden || '',
@@ -157,7 +157,8 @@ function NuevoForm() {
     }
   }, [searchParams])
 
-  const generarCodigo = useCallback(() => {
+  // Lógica de generación de código (prioriza OEM)
+  const generarCodigoSugerido = useCallback(() => {
     const { marca, anio, modelo, subcodigo } = f
     const finalMarca = (marca === 'OTHER' && f.marca_custom) ? f.marca_custom.substring(0, 3).toUpperCase() : (marca ? marca.substring(0, 3).toUpperCase() : '')
     const finalAnio = anio ? anio.substring(2, 4) : ''
@@ -171,14 +172,17 @@ function NuevoForm() {
   }, [f.marca, f.marca_custom, f.anio, f.modelo, f.subcodigo])
 
   useEffect(() => {
-    if (!editId && f.marca && f.anio && f.modelo && f.subcodigo) {
-      setF(prev => ({ ...prev, codigo: generarCodigo() }));
+    // Si hay OEM, el código es el OEM. Si no, usa el sugerido.
+    if (f.oem) {
+      setF(p => ({ ...p, codigo: f.oem }));
+      setCodigoDisplay(f.oem);
+    } else {
+      const sugerido = generarCodigoSugerido();
+      setF(p => ({ ...p, codigo: sugerido }));
+      setCodigoDisplay(sugerido || '—');
     }
-  }, [f.marca, f.marca_custom, f.anio, f.modelo, f.subcodigo, generarCodigo, editId]);
+  }, [f.oem, f.marca, f.marca_custom, f.anio, f.modelo, f.subcodigo, generarCodigoSugerido]);
 
-  useEffect(() => {
-    setCodigoDisplay(f.codigo || '—');
-  }, [f.codigo]);
 
   useEffect(() => {
     const imp = f.importe || 0, env = f.costo_envio || 0, tax = f.taxes || 0, ree = f.reembolsos || 0, ven = f.precio_venta || 0
@@ -199,15 +203,20 @@ function NuevoForm() {
     }
   }, [f.peso, f.largo, f.ancho, f.alto, f.tipo_envio])
 
+  // Lógica de automatización de ubicación según destino y tracking (CORREGIDA)
   useEffect(() => {
-    if (!editId) {
-      if (f.tracking_compra && f.tracking_compra.trim() !== '') {
+    if (!editId) { // Solo auto-asignar en ítems nuevos
+      if (f.destino === 'Venta Argentina') {
+        setF(prev => ({ ...prev, ubicacion: (f.tracking_compra && f.tracking_compra.trim() !== '') ? 'En tránsito' : 'Proveedor' }));
+      } else if (f.destino === 'Venta Internacional') {
+        setF(prev => ({ ...prev, ubicacion: 'En Mano' })); // Por defecto En Mano para venta internacional
+      } else if (f.tracking_compra && f.tracking_compra.trim() !== '') {
         setF(prev => ({ ...prev, ubicacion: 'En tránsito' }));
       } else {
         setF(prev => ({ ...prev, ubicacion: 'Proveedor' }));
       }
     }
-  }, [f.tracking_compra, editId]);
+  }, [f.destino, f.tracking_compra, editId]);
 
 
   const handleCheckboxPlataforma = (plat: string) => {
@@ -217,6 +226,10 @@ function NuevoForm() {
   }
 
   const filtCli = clientes.filter((c: Cliente) => cliSearch && c.nombre.toLowerCase().includes(cliSearch.toLowerCase())).slice(0, 8)
+
+  const generarParcelsAppLink = (tracking: string | undefined | null) => {
+    return tracking ? `https://parcelsapp.com/es/tracking/${tracking}` : '#';
+  };
 
   const guardar = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -244,7 +257,7 @@ function NuevoForm() {
         oem: f.oem || null,
         nro_orden: f.nro_orden || null,
         tracking_compra: f.tracking_compra || null,
-        link_tracking_compra: f.link_tracking_compra || null,
+        link_tracking_compra: generarParcelsAppLink(f.tracking_compra), // Genera el link aquí
         eta: f.eta || null,
         link_producto: f.link_producto || null,
         importe: f.importe,
@@ -262,7 +275,7 @@ function NuevoForm() {
         cliente_id: tipoCarga === 'Venta' ? f.cliente_id : null,
         cliente_nombre: tipoCarga === 'Venta' ? f.cliente_nombre : null,
         ubicacion: f.ubicacion,
-        destino: tipoCarga === 'Venta' ? 'Vendido' : f.destino, // 'Vendido' si es venta, sino el destino de stock
+        destino: tipoCarga === 'Venta' ? (f.destino === 'Venta Argentina' ? 'Venta Argentina' : 'Venta Internacional') : f.destino, // 'Venta Argentina' o 'Venta Internacional' si es venta, sino el destino de stock
         estado_pago: f.estado_pago || null,
         plataforma: platFinal,
         link_publicacion: f.link_publicacion || null,
@@ -314,7 +327,7 @@ function NuevoForm() {
           <button onClick={() => { setTipoCarga('Stock'); setF(p => ({ ...p, destino: 'Stock EEUU', ubicacion: 'Proveedor', cliente_id: undefined, cliente_nombre: undefined, precio_venta: undefined, estado_pago: undefined, pendiente_compra: false })) }} className={`px-6 py-2 rounded-lg font-medium text-sm transition-all ${tipoCarga === 'Stock' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>
             📦 Carga para Stock Directo
           </button>
-          <button onClick={() => { setTipoCarga('Venta'); setF(p => ({ ...p, destino: 'Vendido', ubicacion: 'Proveedor', estado_pago: 'Debe', pendiente_compra: true })) }} className={`px-6 py-2 rounded-lg font-medium text-sm transition-all ${tipoCarga === 'Venta' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>
+          <button onClick={() => { setTipoCarga('Venta'); setF(p => ({ ...p, destino: 'Venta Argentina', ubicacion: 'Proveedor', estado_pago: 'Debe', pendiente_compra: true })) }} className={`px-6 py-2 rounded-lg font-medium text-sm transition-all ${tipoCarga === 'Venta' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>
             💰 Carga Vinculada a Venta
           </button>
         </div>
@@ -344,12 +357,12 @@ function NuevoForm() {
                   <input type="text" value={f.producto} onChange={e => setF(p => ({ ...p, producto: e.target.value }))} className="w-full border rounded px-3 py-2" placeholder="Nombre del producto" required />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold mb-1">Código (Auto-generado / OEM / Manual) *</label>
-                  <input type="text" value={f.codigo} onChange={e => setF(p => ({ ...p, codigo: e.target.value }))} className="w-full border rounded px-3 py-2 bg-gray-100" placeholder="Código único" readOnly={!editId && (f.oem ? true : false)} required />
+                  <label className="block text-sm font-bold mb-1">OEM (prioritario)</label>
+                  <input type="text" value={f.oem || ''} onChange={e => setF(p => ({ ...p, oem: e.target.value }))} className="w-full border rounded px-3 py-2" placeholder="Número OEM" />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold mb-1">OEM</label>
-                  <input type="text" value={f.oem || ''} onChange={e => setF(p => ({ ...p, oem: e.target.value }))} className="w-full border rounded px-3 py-2" placeholder="Número OEM" />
+                  <label className="block text-sm font-bold mb-1">Código (Auto-generado / OEM / Manual) *</label>
+                  <input type="text" value={f.codigo} onChange={e => setF(p => ({ ...p, codigo: e.target.value }))} className="w-full border rounded px-3 py-2 bg-gray-100" placeholder="Código único" readOnly={!!f.oem} required />
                 </div>
                 <div>
                   <label className="block text-sm font-bold mb-1">Link del Producto (URL)</label>
@@ -359,6 +372,7 @@ function NuevoForm() {
 
               <div className="mt-6">
                 <h3 className="text-md font-bold mb-3">🛠️ Datos para Código Automático</h3>
+                <p className="text-sm text-gray-600 mb-3">Se usan si no hay OEM. Código Sugerido: <span className="font-mono font-bold text-blue-600">{generarCodigoSugerido() || '—'}</span></p>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
                     <label className="block text-sm font-bold mb-1">Marca</label>
@@ -389,7 +403,6 @@ function NuevoForm() {
                     </select>
                   </div>
                 </div>
-                <p className="text-sm text-gray-600 mt-3">Código Sugerido: <span className="font-mono font-bold text-blue-600">{generarCodigo() || '—'}</span></p>
               </div>
             </div>
 
@@ -407,169 +420,4 @@ function NuevoForm() {
                 </div>
                 <div>
                   <label className="block text-sm font-bold mb-1">Importe Producto (USD)</label>
-                  <input type="number" step="0.01" value={f.importe} onChange={e => setF(p => ({ ...p, importe: parseFloat(e.target.value) || 0 }))} className="w-full border rounded px-3 py-2" />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold mb-1">Taxes 11% (Calculado)</label>
-                  <p className="w-full bg-gray-100 border rounded px-3 py-2 font-bold text-gray-800">{fmt(calc.taxes11)}</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-bold mb-1">Peso (kg)</label>
-                  <input type="number" step="0.1" value={f.peso} onChange={e => setF(p => ({ ...p, peso: parseFloat(e.target.value) || 0 }))} className="w-full border rounded px-3 py-2" />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold mb-1">Tipo Envío</label>
-                  <select value={f.tipo_envio} onChange={e => setF(p => ({ ...p, tipo_envio: e.target.value }))} className="w-full border rounded px-3 py-2">
-                    <option value="aereo">Aéreo ($50/kg)</option>
-                    <option value="barco">Barco</option>
-                  </select>
-                </div>
-                {f.tipo_envio === 'barco' && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-bold mb-1">Largo (cm)</label>
-                      <input type="number" step="0.1" value={f.largo || ''} onChange={e => setF(p => ({ ...p, largo: parseFloat(e.target.value) || 0 }))} className="w-full border rounded px-3 py-2" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold mb-1">Ancho (cm)</label>
-                      <input type="number" step="0.1" value={f.ancho || ''} onChange={e => setF(p => ({ ...p, ancho: parseFloat(e.target.value) || 0 }))} className="w-full border rounded px-3 py-2" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold mb-1">Alto (cm)</label>
-                      <input type="number" step="0.1" value={f.alto || ''} onChange={e => setF(p => ({ ...p, alto: parseFloat(e.target.value) || 0 }))} className="w-full border rounded px-3 py-2" />
-                    </div>
-                  </>
-                )}
-                <div>
-                  <label className="block text-sm font-bold mb-1">Costo Envío (USD)</label>
-                  <input type="number" step="0.01" value={f.costo_envio} onChange={e => setF(p => ({ ...p, costo_envio: parseFloat(e.target.value) || 0 }))} className="w-full border rounded px-3 py-2" />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold mb-1">Taxes EEUU</label>
-                  <input type="number" step="0.01" value={f.taxes} onChange={e => setF(p => ({ ...p, taxes: parseFloat(e.target.value) || 0 }))} className="w-full border rounded px-3 py-2" />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold mb-1">Reembolsos</label>
-                  <input type="number" step="0.01" value={f.reembolsos} onChange={e => setF(p => ({ ...p, reembolsos: parseFloat(e.target.value) || 0 }))} className="w-full border rounded px-3 py-2" />
-                </div>
-              </div>
-              <div className="mt-6 col-span-full text-right">
-                <label className="block text-lg font-bold mb-1">COSTO TOTAL (USD)</label>
-                <p className="w-full bg-blue-200 border border-blue-400 rounded px-4 py-2 text-2xl font-bold text-blue-800">{fmt(calc.costo_total)}</p>
-              </div>
-            </div>
-
-            {/* Sección de Tracking */}
-            <div className="bg-green-50 p-6 rounded-lg mb-8 border border-green-200">
-              <h2 className="text-xl font-bold mb-4 text-green-800">📦 Tracking y Ubicación</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-bold mb-1">Nro. Orden</label>
-                  <input type="text" value={f.nro_orden || ''} onChange={e => setF(p => ({ ...p, nro_orden: e.target.value }))} className="w-full border rounded px-3 py-2" placeholder="Número de orden de compra" />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold mb-1">Tracking Compra</label>
-                  <input type="text" value={f.tracking_compra || ''} onChange={e => setF(p => ({ ...p, tracking_compra: e.target.value }))} className="w-full border rounded px-3 py-2" placeholder="Número de tracking" />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold mb-1">Link Tracking Compra</label>
-                  <input type="text" value={f.link_tracking_compra || ''} onChange={e => setF(p => ({ ...p, link_tracking_compra: e.target.value }))} className="w-full border rounded px-3 py-2" placeholder="URL al tracking" />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold mb-1">ETA (YYYY-MM-DD)</label>
-                  <input type="date" value={f.eta || ''} onChange={e => setF(p => ({ ...p, eta: e.target.value }))} className="w-full border rounded px-3 py-2" />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold mb-1">Ubicación Física</label>
-                  <select value={f.ubicacion} onChange={e => setF(p => ({ ...p, ubicacion: e.target.value }))} className="w-full border rounded px-3 py-2">
-                    {UBICACIONES_FISICAS.map(u => (<option key={u} value={u}>{u}</option>))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-bold mb-1">Destino Final</label>
-                  <select value={f.destino} onChange={e => setF(p => ({ ...p, destino: e.target.value }))} className="w-full border rounded px-3 py-2">
-                    {DESTINOS.map(d => (<option key={d} value={d}>{d}</option>))}
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Sección de Venta y Publicación (condicional) */}
-            {tipoCarga === 'Venta' && (
-              <div className="bg-yellow-50 p-6 rounded-lg mb-8 border border-yellow-200">
-                <h2 className="text-xl font-bold mb-4 text-yellow-800">💰 Detalles de Venta</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-bold mb-1">Precio de Venta (USD)</label>
-                    <input type="number" step="0.01" value={f.precio_venta || ''} onChange={e => setF(p => ({ ...p, precio_venta: parseFloat(e.target.value) || 0 }))} className="w-full border rounded px-3 py-2" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold mb-1">Ganancia Calculada</label>
-                    <p className={`w-full bg-gray-100 border rounded px-3 py-2 text-lg font-bold ${calc.ganancia >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {f.precio_venta ? (calc.ganancia >= 0 ? '+' : '') + fmt(calc.ganancia) : '—'}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold mb-1">Estado de Pago</label>
-                    <select value={f.estado_pago || ''} onChange={e => setF(p => ({ ...p, estado_pago: e.target.value }))} className="w-full border rounded px-3 py-2">
-                      <option value="">— Sin definir —</option>
-                      <option value="Saldado">Saldado</option>
-                      <option value="Debe">Debe</option>
-                      <option value="Debemos">Debemos</option>
-                    </select>
-                  </div>
-                  <div className="relative">
-                    <label className="block text-sm font-bold mb-1">Cliente Asignado *</label>
-                    <input type="text" value={cliSearch} onChange={e => { setCliSearch(e.target.value); setShowCliDrop(true); if (!e.target.value) setF(p => ({ ...p, cliente_id: undefined, cliente_nombre: undefined })) }} onFocus={() => { if (cliSearch) setShowCliDrop(true) }} className="w-full border rounded px-3 py-2" placeholder="Buscar cliente..." />
-                    {showCliDrop && filtCli.length > 0 && (
-                      <div ref={cliDropRef} className="absolute top-full left-0 right-0 bg-white border rounded mt-1 shadow-lg z-10 max-h-48 overflow-y-auto">
-                        {filtCli.map((c: Cliente) => (
-                          <button key={c.id} type="button" onClick={e => { e.preventDefault(); setF(p => ({ ...p, cliente_id: c.id, cliente_nombre: c.nombre })); setCliSearch(c.nombre); setShowCliDrop(false) }} className="w-full text-left px-4 py-2 hover:bg-gray-50 border-b last:border-b-0">
-                            {c.nombre}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="mt-6">
-                  <h3 className="text-md font-bold mb-3">🌐 Plataformas de Publicación</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    {PLATAFORMAS.map(p => (
-                      <label key={p} className="flex items-center gap-2">
-                        <input type="checkbox" checked={plataformasSeleccionadas.includes(p)} onChange={() => handleCheckboxPlataforma(p)} className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4" />
-                        {p}
-                      </label>
-                    ))}
-                  </div>
-                  <div className="mt-4">
-                    <label className="block text-sm font-bold mb-1">Link Publicación (URL)</label>
-                    <input type="text" value={f.link_publicacion || ''} onChange={e => setF(p => ({ ...p, link_publicacion: e.target.value }))} className="w-full border rounded px-3 py-2" placeholder="URL de la publicación" />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-end gap-4 mt-8">
-              <button type="button" onClick={() => router.push('/dashboard/inventario')} className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 font-bold">
-                Cancelar
-              </button>
-              <button type="submit" disabled={saving || loading} className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-bold disabled:opacity-50">
-                {saving ? 'Guardando...' : editId ? 'Actualizar Ítem' : 'Crear Ítem'}
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-    </div>
-  )
-}
-
-export default function NuevoPage() {
-  return (
-    <Suspense fallback={<div className="p-6 text-center">Cargando...</div>}>
-      <NuevoForm />
-    </Suspense>
-  )
-}
+                  <input type="number" step="0.01" value={f.importe} onChange={e =>
