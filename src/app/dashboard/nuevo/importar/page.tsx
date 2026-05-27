@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from 'react'
 import { supabase, type Cliente, fmt } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
-import { FileText, Loader, CheckCircle, X, ClipboardList } from 'lucide-react' // Agregamos ClipboardList
+import { FileText, Loader, CheckCircle, X, ClipboardList } from 'lucide-react'
 
 interface ItemImportado {
   producto: string;
@@ -116,7 +116,7 @@ export default function ImportarPage() {
       return;
     }
     setLoading(true);
-    toast.loading('Procesando datos pegados...');
+    const tid = toast.loading('Procesando datos pegados...');
     try {
       const lines = rawPastedText.trim().split('\n');
       const itemsProcesados: ItemImportado[] = [];
@@ -124,7 +124,8 @@ export default function ImportarPage() {
       lines.forEach(line => {
         const cols = line.split('\t').map(col => col.trim());
         // Columnas esperadas: Producto | OEM | Cantidad | Importe Unitario | Costo Envío Unitario | Taxes Unitario | Reembolsos Unitario
-        if (cols.length < 7) {
+        // Asegúrate de que los índices de las columnas coincidan con tu Excel
+        if (cols.length < 7) { // Necesitamos al menos 7 columnas
           console.warn('Línea ignorada por formato incorrecto:', line);
           return; 
         }
@@ -155,9 +156,9 @@ export default function ImportarPage() {
       
       setItems(itemsProcesados);
       setPaso('revisar');
-      toast.success(`Se procesaron ${itemsProcesados.length} ítems.`, { id: 'paste-process' });
+      toast.success(`Se procesaron ${itemsProcesados.length} ítems.`, { id: tid });
     } catch (e: any) {
-      toast.error('Error al procesar los datos: ' + (e.message || 'Verifica el formato del Excel.'), { id: 'paste-process' });
+      toast.error('Error al procesar los datos: ' + (e.message || 'Verifica el formato del Excel.'), { id: tid });
       console.error("Error al procesar pegado masivo:", e);
     } finally {
       setLoading(false);
@@ -379,7 +380,7 @@ export default function ImportarPage() {
             <p className="text-gray-600 mb-4">Pegá aquí los datos de Excel (separados por tabulaciones).</p>
             <textarea
               className="w-full border rounded p-4 text-sm h-40 mb-4"
-              placeholder={`Producto\tOEM\tCantidad\tImporte Unitario\tCosto Envío Unitario\tTaxes Unitario\tReembolsos Unitario\nFiltro\tABC-123\t2\t15.00\t2.50\t1.00\t0.00`}
+              placeholder={`Producto\tOEM\tCantidad\tImporte Unitario\tCosto Envío Unitario\tTaxes Unitario\tReembolsos Unitario\nFiltro de Aire\tABC-123\t2\t15.00\t2.50\t1.00\t0.00\nBujía\tXYZ-456\t1\t8.00\t1.00\t0.50\t0.00`}
               value={rawPastedText}
               onChange={e => setRawPastedText(e.target.value)}
               disabled={loading}
