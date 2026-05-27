@@ -9,7 +9,7 @@ import SelectorCotizacion from './SelectorCotizacion'
 const MARCAS = [{ v: 'K', l: 'Kawasaki (K)' }, { v: 'Y', l: 'Yamaha (Y)' }, { v: 'S', l: 'Suzuki (S)' }, { v: 'H', l: 'Honda (H)' }, { v: 'HD', l: 'Harley-Davidson (HD)' }, { v: 'OTHER', l: 'Otra...' }]
 const SUBCODIGOS = [{ v: 'M', l: 'M – Motor' }, { v: 'C', l: 'C – Carbureción' }, { v: 'E', l: 'E – Electricidad' }, { v: 'T', l: 'T – Transmisión' }, { v: 'F', l: 'F – Frenos' }, { v: 'S', l: 'S – Suspensión/Chasis' }, { v: 'X', l: 'X – Carrocería' }, { v: 'I', l: 'I – Iluminación' }]
 
-// --- NUEVAS UBICACIONES ---
+// --- NUEVAS UBICACIONES Y DESTINOS CON LA LÓGICA CLARIFICADA ---
 const UBICACIONES_FISICAS = ['Proveedor','En tránsito','En tránsito a Daniel','Daniel','Pablo','Blue Mail','Tato','Tránsito a Bs As','Stock EEUU', 'Stock España', 'Stock Argentina', 'En Mano', 'Entregado']
 const DESTINOS_FINALES = ['Stock EEUU', 'Stock España', 'Stock Argentina', 'Venta Argentina', 'Venta Internacional', 'Uso Propio', 'Stock Internacional']
 
@@ -116,7 +116,7 @@ function NuevoForm() {
             producto: data.producto || '',
             codigo: data.codigo || '',
             ubicacion: data.ubicacion || 'Proveedor',
-            destino: data.destino === 'Vendido' ? 'Venta Argentina' : (data.destino || 'Stock EEUU'),
+            destino: data.destino === 'Vendido' ? 'Venta Argentina' : (data.destino || 'Stock EEUU'), // Ajuste para el switch
             marca_custom: '',
             link_producto: data.link_producto || '',
             nro_orden: data.nro_orden || '',
@@ -172,11 +172,11 @@ function NuevoForm() {
 
   useEffect(() => {
     if (f.oem && f.oem.trim() !== '') {
-      setF(p => ({ ...p, codigo: f.oem || '' })); // Aseguramos que sea string
+      setF(p => ({ ...p, codigo: f.oem || '' }));
       setCodigoDisplay(f.oem);
     } else {
       const sugerido = generarCodigoSugerido();
-      setF(p => ({ ...p, codigo: sugerido || '' })); // Aseguramos que sea string
+      setF(p => ({ ...p, codigo: sugerido || '' }));
       setCodigoDisplay(sugerido || '—');
     }
   }, [f.oem, f.marca, f.marca_custom, f.anio, f.modelo, f.subcodigo, generarCodigoSugerido]);
@@ -203,13 +203,17 @@ function NuevoForm() {
 
   useEffect(() => {
     if (!editId) {
-      if (f.tracking_compra && f.tracking_compra.trim() !== '') {
+      if (f.destino === 'Venta Argentina') {
+        setF(prev => ({ ...prev, ubicacion: (f.tracking_compra && f.tracking_compra.trim() !== '') ? 'En tránsito' : 'Proveedor' }));
+      } else if (f.destino === 'Venta Internacional') {
+        setF(prev => ({ ...prev, ubicacion: 'En Mano' }));
+      } else if (f.tracking_compra && f.tracking_compra.trim() !== '') {
         setF(prev => ({ ...prev, ubicacion: 'En tránsito' }));
       } else {
         setF(prev => ({ ...prev, ubicacion: 'Proveedor' }));
       }
     }
-  }, [f.tracking_compra, editId]);
+  }, [f.destino, f.tracking_compra, editId]);
 
 
   const handleCheckboxPlataforma = (plat: string) => {
