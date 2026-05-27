@@ -7,9 +7,9 @@ import toast from 'react-hot-toast'
 
 // --- UBICACIONES ---
 // Las ubicaciones que representan Stock físico en el inventario para el filtro
-const UBICACIONES_FILTRO = ['Proveedor','En tránsito','En tránsito a Daniel','Daniel','Pablo','Blue Mail','Tato','Tránsito a Bs As','En Mano','Stock EEUU', 'Stock España', 'Stock Argentina', 'Vendido', 'Cancelado']
+const UBICACIONES_FILTRO = ['Proveedor','En tránsito','En tránsito a Daniel','Daniel','Pablo','Blue Mail','Tato','Tránsito a Bs As','En Mano','Stock EEUU', 'Stock España', 'Stock Argentina', 'Vendido', 'Cancelado', 'Entregado']
 
-const DESTINOS = ['Argentina','Stock EEUU','Uso propio','Stock Argentina','Stock Internacional']
+const DESTINOS = ['Stock EEUU', 'Stock España', 'Stock Argentina', 'Venta Argentina', 'Venta Internacional', 'Uso Propio', 'Stock Internacional'] // Usar los mismos destinos que en el form de NuevoItem
 
 function InventarioTable() {
   const [items, setItems] = useState<any[]>([])
@@ -169,9 +169,9 @@ function InventarioTable() {
                     <td className="px-3 py-2 text-xs">{x.nro_orden || '—'}</td>
                     <td className="px-3 py-2 text-xs">
                       {x.tracking_compra ? x.tracking_compra.substring(0, 10) + '…' : '—'}
-                      <button type="button" onClick={() => openTrackCompra(x.id)} className="ml-1 text-blue-500 hover:text-blue-700 text-xs">
+                      <a href={x.link_tracking_compra} target="_blank" rel="noopener noreferrer" className="ml-1 text-blue-500 hover:text-blue-700 text-xs">
                         📦
-                      </button>
+                      </a>
                     </td>
                     <td className="px-3 py-2 text-xs">{fmtDate(x.eta)}</td>
                     <td className="px-3 py-2 text-xs">
