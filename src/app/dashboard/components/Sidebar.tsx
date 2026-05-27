@@ -10,7 +10,6 @@ const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/scanner', label: 'Escanear', icon: ScanLine },
   { href: '/dashboard/nuevo', label: '+ Nuevo ítem', icon: Package },
-  { href: '/dashboard/nuevo/importar', label: '↑ Importar factura', icon: Package },
   { href: '/dashboard/ventas', label: '+ Venta', icon: ShoppingCart },
   { href: '/dashboard/cotizaciones', label: 'Cotizaciones', icon: FileText },
   { href: '/dashboard/pedidos', label: 'Pedidos', icon: Truck },
