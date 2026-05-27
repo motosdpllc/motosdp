@@ -11,9 +11,8 @@ export type Ubicacion =
   | 'Daniel' | 'Pablo' | 'Blue Mail' | 'Tato'
   | 'Tránsito a Bs As' | 'En Mano' | 'Stock EEUU' | 'Stock España' | 'Stock Argentina' | 'Entregado';
 
-export type Destino = 
-  | 'Argentina' | 'Stock EEUU' | 'Uso propio' 
-  | 'Stock Argentina' | 'Stock Internacional'
+export type Destino =
+  | 'Stock EEUU' | 'Stock España' | 'Stock Argentina' | 'Venta Argentina' | 'Venta Internacional' | 'Uso Propio' | 'Stock Internacional' | 'Vendido';
 
 export type EstadoPago = 'Saldado' | 'Debe' | 'Debemos'
 
