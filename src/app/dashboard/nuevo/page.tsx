@@ -9,7 +9,7 @@ import SelectorCotizacion from './SelectorCotizacion'
 const MARCAS = [{ v: 'K', l: 'Kawasaki (K)' }, { v: 'Y', l: 'Yamaha (Y)' }, { v: 'S', l: 'Suzuki (S)' }, { v: 'H', l: 'Honda (H)' }, { v: 'HD', l: 'Harley-Davidson (HD)' }, { v: 'OTHER', l: 'Otra...' }]
 const SUBCODIGOS = [{ v: 'M', l: 'M – Motor' }, { v: 'C', l: 'C – Carbureción' }, { v: 'E', l: 'E – Electricidad' }, { v: 'T', l: 'T – Transmisión' }, { v: 'F', l: 'F – Frenos' }, { v: 'S', l: 'S – Suspensión/Chasis' }, { v: 'X', l: 'X – Carrocería' }, { v: 'I', l: 'I – Iluminación' }]
 
-// --- NUEVAS UBICACIONES Y DESTINOS CON LA LÓGICA CLARIFICADA ---
+// --- NUEVAS UBICACIONES ---
 const UBICACIONES_FISICAS = ['Proveedor','En tránsito','En tránsito a Daniel','Daniel','Pablo','Blue Mail','Tato','Tránsito a Bs As','Stock EEUU', 'Stock España', 'Stock Argentina', 'En Mano', 'Entregado']
 const DESTINOS_FINALES = ['Stock EEUU', 'Stock España', 'Stock Argentina', 'Venta Argentina', 'Venta Internacional', 'Uso Propio', 'Stock Internacional']
 
@@ -38,7 +38,7 @@ interface ItemForm {
   alto: number
   tipo_envio: string
   costo_envio: number
-  taxes: number
+  taxes: number 
   reembolsos: number
   precio_venta?: number
   cliente_id?: string
@@ -50,6 +50,7 @@ interface ItemForm {
   link_publicacion?: string
   codigo: string
   pendiente_compra?: boolean
+  cantidad: number // <-- CANTIDAD AGREGADA
 }
 
 const EMPTY_ITEM: ItemForm = {
@@ -62,11 +63,12 @@ const EMPTY_ITEM: ItemForm = {
   alto: 0,
   tipo_envio: 'aereo',
   costo_envio: 0,
-  taxes: 0,
+  taxes: 0, // Directo
   reembolsos: 0,
-  ubicacion: 'Proveedor', // Valor inicial sugerido
-  destino: 'Stock EEUU', // Valor inicial sugerido
+  ubicacion: 'Proveedor',
+  destino: 'Stock EEUU',
   fecha_compra: new Date().toISOString().split('T')[0],
+  cantidad: 1, // <-- CANTIDAD INICIAL
 }
 
 function NuevoForm() {
@@ -89,7 +91,7 @@ function NuevoForm() {
   const [plataformasSeleccionadas, setPlataformasSeleccionadas] = useState<string[]>([])
 
   const [f, setF] = useState<ItemForm>(EMPTY_ITEM)
-  const [calc, setCalc] = useState({ costo_total: 0, ganancia: 0, taxes11: 0 })
+  const [calc, setCalc] = useState({ costo_total: 0, ganancia: 0 }) // Taxes 11% ya no se calcula aquí
 
   useEffect(() => {
     supabase.from('clientes').select('id, nombre, telefono, provincia').order('nombre').then(({ data }) => setClientes(data || []))
@@ -111,12 +113,12 @@ function NuevoForm() {
             ancho: data.ancho || 0,
             alto: data.alto || 0,
             costo_envio: data.costo_envio || 0,
-            taxes: data.taxes || 0,
+            taxes: data.taxes || 0, // Directamente el valor guardado
             reembolsos: data.reembolsos || 0,
             producto: data.producto || '',
             codigo: data.codigo || '',
             ubicacion: data.ubicacion || 'Proveedor',
-            destino: data.destino === 'Vendido' ? 'Venta Argentina' : (data.destino || 'Stock EEUU'), // Ajuste para el switch
+            destino: data.destino === 'Vendido' ? 'Venta Argentina' : (data.destino || 'Stock EEUU'),
             marca_custom: '',
             link_producto: data.link_producto || '',
             nro_orden: data.nro_orden || '',
@@ -136,7 +138,8 @@ function NuevoForm() {
             subcodigo: data.subcodigo || '',
             tipo_envio: data.tipo_envio || 'aereo',
             estado_pago: data.estado_pago || '',
-            pendiente_compra: data.pendiente_compra || false
+            pendiente_compra: data.pendiente_compra || false,
+            cantidad: data.cantidad || 1, // <-- Cantidad cargada
           })
           setEditId(itemId)
           setCliSearch(data.cliente_nombre || '')
@@ -183,11 +186,11 @@ function NuevoForm() {
 
 
   useEffect(() => {
+    // Taxes ahora es un input directo, no calculado como taxes11
     const imp = f.importe || 0, env = f.costo_envio || 0, tax = f.taxes || 0, ree = f.reembolsos || 0, ven = parseFloat(f.precio_venta as any) || 0
-    const taxes11 = imp * 0.11
-    const costo = imp + taxes11 + env + tax - ree
-    setCalc({ costo_total: costo, ganancia: ven - costo, taxes11 })
-  }, [f.importe, f.costo_envio, f.taxes, f.reembolsos, f.precio_venta])
+    const costo = (imp * f.cantidad) + (env * f.cantidad) + (tax * f.cantidad) - (ree * f.cantidad) // Costo total del ítem con cantidad
+    setCalc({ costo_total: costo, ganancia: ven - costo })
+  }, [f.importe, f.costo_envio, f.taxes, f.reembolsos, f.precio_venta, f.cantidad]) // Incluir cantidad en la dependencia
 
   useEffect(() => {
     if (f.tipo_envio === 'aereo') {
@@ -232,6 +235,7 @@ function NuevoForm() {
     e.preventDefault()
     if (!f.producto.trim()) { toast.error('El producto es obligatorio'); return }
     if (!f.codigo.trim()) { toast.error('El código es obligatorio'); return }
+    if (f.cantidad <= 0) { toast.error('La cantidad debe ser mayor que 0'); return } // Validación de cantidad
     if (tipoCarga === 'Venta' && !f.cliente_id) { toast.error('Falta seleccionar el cliente para consolidar la Venta'); return }
 
     setSaving(true)
@@ -275,14 +279,15 @@ function NuevoForm() {
         plataforma: platFinal,
         link_publicacion: f.link_publicacion || null,
         updated_at: new Date().toISOString(),
-        pendiente_compra: isPendienteCompra
+        pendiente_compra: isPendienteCompra,
+        cantidad: f.cantidad, // <-- CANTIDAD AGREGADA AL PAYLOAD
       }
 
       if (editId) {
         await supabase.from('items').update(payload).eq('id', editId)
         toast.success('Ítem actualizado ✓')
       } else {
-        await supabase.from('items').insert({ ...payload, codigo: f.codigo })
+        await supabase.from('items').insert([payload])
         toast.success('Ítem guardado ✓')
       }
       router.push('/dashboard/inventario')
@@ -346,6 +351,10 @@ function NuevoForm() {
                 <div>
                   <label className="block text-sm font-bold mb-1">Producto *</label>
                   <input type="text" value={f.producto} onChange={e => setF(p => ({ ...p, producto: e.target.value }))} className="w-full border rounded px-3 py-2" placeholder="Nombre del producto" required />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold mb-1">Cantidad *</label>
+                  <input type="number" step="1" value={f.cantidad} onChange={e => setF(p => ({ ...p, cantidad: parseInt(e.target.value) || 1 }))} className="w-full border rounded px-3 py-2" placeholder="Cantidad" required />
                 </div>
                 <div>
                   <label className="block text-sm font-bold mb-1">OEM (prioritario)</label>
@@ -414,8 +423,8 @@ function NuevoForm() {
                   <input type="number" step="0.01" value={f.importe} onChange={e => setF(p => ({ ...p, importe: parseFloat(e.target.value) || 0 }))} className="w-full border rounded px-3 py-2" />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold mb-1">Taxes 11% (Calculado)</label>
-                  <p className="w-full bg-gray-100 border rounded px-3 py-2 font-bold text-gray-800">{fmt(calc.taxes11)}</p>
+                  <label className="block text-sm font-bold mb-1">Taxes (USD)</label>
+                  <input type="number" step="0.01" value={f.taxes} onChange={e => setF(p => ({ ...p, taxes: parseFloat(e.target.value) || 0 }))} className="w-full border rounded px-3 py-2" />
                 </div>
                 <div>
                   <label className="block text-sm font-bold mb-1">Peso (kg)</label>
@@ -447,10 +456,6 @@ function NuevoForm() {
                 <div>
                   <label className="block text-sm font-bold mb-1">Costo Envío (USD)</label>
                   <input type="number" step="0.01" value={f.costo_envio} onChange={e => setF(p => ({ ...p, costo_envio: parseFloat(e.target.value) || 0 }))} className="w-full border rounded px-3 py-2" />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold mb-1">Taxes EEUU</label>
-                  <input type="number" step="0.01" value={f.taxes} onChange={e => setF(p => ({ ...p, taxes: parseFloat(e.target.value) || 0 }))} className="w-full border rounded px-3 py-2" />
                 </div>
                 <div>
                   <label className="block text-sm font-bold mb-1">Reembolsos</label>
