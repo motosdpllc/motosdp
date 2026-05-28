@@ -158,4 +158,16 @@ export function ubicColor(u?: string): string {
   if (u === 'Cancelado') return 'bg-red-100 text-red-700'
   if (['Daniel', 'Pablo', 'Blue Mail', 'Tato'].includes(u)) return 'bg-blue-100 text-blue-700'
   return 'bg-gray-100 text-gray-600'
+
+  export interface PagoStripe {
+  id: string
+  cliente_id?: string
+  nro_venta?: string
+  monto: number
+  fecha_pago: string
+  descripcion?: string
+  stripe_id?: string
+  status: string
+  created_at?: string
+}
 }
