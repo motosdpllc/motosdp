@@ -1,9 +1,9 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react' // Importamos Suspense
 import { supabase, fmt, type Item, type PedidoCliente } from '@/lib/supabase' // Agregamos PedidoCliente
 import { useRouter, useSearchParams } from 'next/navigation'
 import toast from 'react-hot-toast'
-import { X, List } from 'lucide-react' // Usaremos List para pedidos
+import { X, List, Plus } from 'lucide-react' // Usaremos List para pedidos y Plus para el genérico
 
 interface VentaItem {
   id: string; producto: string; oem?: string; codigo?: string
@@ -13,7 +13,7 @@ interface VentaItem {
 
 function VentasForm() {
   const router = useRouter()
-  const searchParams = useSearchParams()
+  const searchParams = useSearchParams() // Este hook requiere Suspense
   const cliDropRef = useRef<HTMLDivElement>(null)
   const itemDropRef = useRef<HTMLDivElement>(null)
   const pedidoDropRef = useRef<HTMLDivElement>(null) // Nuevo ref para pedidos
