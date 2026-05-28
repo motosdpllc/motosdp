@@ -4,12 +4,13 @@ import { supabase, fmt, fmtDate, type Item } from '@/lib/supabase'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import toast from 'react-hot-toast'
+import { CheckCircle } from 'lucide-react'
 
 // --- UBICACIONES ---
 // Las ubicaciones que representan Stock físico en el inventario para el filtro
 const UBICACIONES_FILTRO = ['Proveedor','En tránsito','En tránsito a Daniel','Daniel','Pablo','Blue Mail','Tato','Tránsito a Bs As','En Mano','Stock EEUU', 'Stock España', 'Stock Argentina', 'Vendido', 'Cancelado', 'Entregado']
 
-const DESTINOS = ['Stock EEUU', 'Stock España', 'Stock Argentina', 'Venta Argentina', 'Venta Internacional', 'Uso Propio', 'Stock Internacional'] // Usar los mismos destinos que en el form de NuevoItem
+const DESTINOS = ['Stock EEUU', 'Stock España', 'Stock Argentina', 'Venta Argentina', 'Venta Internacional', 'Uso Propio', 'Stock Internacional']
 
 function InventarioTable() {
   const [items, setItems] = useState<any[]>([])
@@ -28,8 +29,8 @@ function InventarioTable() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      // Incluir pendiente_compra en el select
-      let query = supabase.from('items').select('*, pendiente_compra').order('created_at', { ascending: false })
+      // Incluir pendiente_compra y fecha_entregado en el select
+      let query = supabase.from('items').select('*, pendiente_compra, fecha_entregado').order('created_at', { ascending: false })
       if (ubic) query = query.eq('ubicacion', ubic)
       if (dest) query = query.eq('destino', dest)
       const { data } = await query.limit(500)
@@ -92,6 +93,24 @@ function InventarioTable() {
       tracking_venta: tracking,
       updated_at: new Date().toISOString()
     }).eq('id', id).then(() => load())
+  }
+
+  // --- NUEVA FUNCIÓN: Marcar como entregado ---
+  const marcarEntregado = async (id: string) => {
+    if (!confirm('¿Marcar este producto como ENTREGADO al cliente?')) return
+    try {
+      const { error } = await supabase.from('items').update({
+        ubicacion: 'Entregado', // Cambia la ubicación a Entregado
+        destino: 'Vendido', // Asegura que el destino sea Vendido
+        fecha_entregado: new Date().toISOString().split('T')[0], // Guarda la fecha de hoy
+        updated_at: new Date().toISOString()
+      }).eq('id', id)
+      if (error) throw error
+      toast.success('Producto marcado como entregado ✓')
+      load()
+    } catch (error) {
+      toast.error('Error al marcar como entregado')
+    }
   }
 
   return (
@@ -161,6 +180,7 @@ function InventarioTable() {
                 const costo = x.costo_total || 0
                 const venta = x.precio_venta || 0
                 const gan = venta - costo
+                const isEntregado = x.ubicacion === 'Entregado'
                 return (
                   <tr key={x.id} className="border-b hover:bg-gray-50">
                     <td className="px-3 py-2 font-mono font-bold text-blue-600">{x.codigo || '—'}</td>
@@ -169,9 +189,11 @@ function InventarioTable() {
                     <td className="px-3 py-2 text-xs">{x.nro_orden || '—'}</td>
                     <td className="px-3 py-2 text-xs">
                       {x.tracking_compra ? x.tracking_compra.substring(0, 10) + '…' : '—'}
-                      <a href={x.link_tracking_compra} target="_blank" rel="noopener noreferrer" className="ml-1 text-blue-500 hover:text-blue-700 text-xs">
-                        📦
-                      </a>
+                      {x.link_tracking_compra && x.link_tracking_compra !== '#' && (
+                        <a href={x.link_tracking_compra} target="_blank" rel="noopener noreferrer" className="ml-1 text-blue-500 hover:text-blue-700 text-xs">
+                          📦
+                        </a>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-xs">{fmtDate(x.eta)}</td>
                     <td className="px-3 py-2 text-xs">
@@ -194,6 +216,16 @@ function InventarioTable() {
                       {x.pendiente_compra ? '⏳' : '—'}
                     </td>
                     <td className="px-3 py-2 text-center space-x-1">
+                      {!isEntregado && x.destino && x.destino.startsWith('Venta') && ( // Solo si es una venta y no está entregado
+                        <button
+                          type="button"
+                          onClick={() => marcarEntregado(x.id)}
+                          className="text-blue-500 hover:text-blue-700 text-xs"
+                          title="Marcar como entregado"
+                        >
+                          <CheckCircle size={16} />
+                        </button>
+                      )}
                       <a href={`/dashboard/nuevo?edit=${x.id}`} className="text-blue-500 hover:text-blue-700 text-xs">
                         ✏️
                       </a>
