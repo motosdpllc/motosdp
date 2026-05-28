@@ -4,12 +4,17 @@ import { supabase, fmtDate, fmt, type Cliente, type Item, type PedidoCliente, ty
 import toast from 'react-hot-toast'
 import { Search, Plus, Package, CheckCircle, List } from 'lucide-react'
 
+// Tipo extendido para los ítems de cotización en esta página
+interface ApprovedCotItem extends CotizacionItem {
+  _cotNro: string; // Número de cotización para mostrar en el selector
+}
+
 export default function PedidosPage() {
   const [clientes, setClientes] = useState<any[]>([])
   const [selectedCli, setSelectedCli] = useState<Cliente | null>(null)
   const [pedidos, setPedidos] = useState<any[]>([])
   const [itemsCli, setItemsCli] = useState<any[]>([])
-  const [cotizacionesCli, setCotizacionesCli] = useState<any[]>([]) // Cotizaciones del cliente
+  const [cotizacionesCli, setCotizacionesCli] = useState<ApprovedCotItem[]>([]) // Usamos el tipo extendido
   const [searchCli, setSearchCli] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
 
@@ -37,8 +42,8 @@ export default function PedidosPage() {
     setPedidos(pedRes.data || [])
     setItemsCli(itemRes.data || [])
     
-    // Filtrar solo los ítems "activos" de las cotizaciones
-    const approvedCotItems: CotizacionItem[] = [];
+    // Filtrar solo los ítems "activos" de las cotizaciones y tiparlos
+    const approvedCotItems: ApprovedCotItem[] = [];
     (cotRes.data || []).forEach((cot: any) => {
         (cot.cotizacion_items || []).filter((ci: CotizacionItem) => ci.estado === 'activo').forEach((ci: CotizacionItem) => {
             approvedCotItems.push({ ...ci, _cotNro: cot.nro }); // Añadimos el nro de cotización para mostrar
@@ -117,7 +122,6 @@ export default function PedidosPage() {
       return item?.ubicacion || 'Inventario (Desconocido)'
     }
     if (pedido.cotizacion_item_id) {
-      // Si el pedido está vinculado a un item de cotización, mostramos su estado
       const cotItem = cotizacionesCli.find(x => x.id === pedido.cotizacion_item_id);
       return cotItem ? `Cotización ${cotItem._cotNro} (Activo)` : 'Cotización (Desconocido)';
     }
@@ -137,12 +141,12 @@ export default function PedidosPage() {
       )
       .map((x: any) => ({ type: 'item', data: x })),
     ...(cotizacionesCli || [])
-      .filter((x: any) => 
+      .filter((x: ApprovedCotItem) => 
         (x.descripcion || '').toLowerCase().includes(searchItemOrCot.toLowerCase()) ||
         (x.codigo || '').toLowerCase().includes(searchItemOrCot.toLowerCase()) ||
         (x._cotNro || '').toLowerCase().includes(searchItemOrCot.toLowerCase())
       )
-      .map((x: any) => ({ type: 'cotizacion_item', data: x })),
+      .map((x: ApprovedCotItem) => ({ type: 'cotizacion_item', data: x })),
   ].slice(0, 10); // Limitar resultados
 
 
@@ -203,7 +207,7 @@ export default function PedidosPage() {
                   value={searchItemOrCot}
                   onChange={e => { setSearchItemOrCot(e.target.value); setShowItemOrCotDrop(true) }}
                   onFocus={() => setShowItemOrCotDrop(true)}
-                  placeholder="Buscar ítem o cotización..."
+                  placeholder="Buscar ítem del inventario o de cotización aprobada..."
                   className="flex-1 border rounded px-3 py-2"
                 />
                 {showItemOrCotDrop && combinedSearchResults.length > 0 && (
@@ -227,7 +231,8 @@ export default function PedidosPage() {
                     ))}
                   </div>
                 )}
-                <button type="button" onClick={() => agregarPedido({ type: 'item', data: { producto: searchItemOrCot, id: null } })} disabled={!searchItemOrCot.trim()} className="btn bg-green-600 text-white hover:bg-green-700">
+                {/* Botón para agregar texto genérico si no se selecciona nada de la lista */}
+                <button type="button" onClick={() => agregarPedido({ type: 'item', data: { producto: searchItemOrCot, id: null, codigo: 'GENERICO' } })} disabled={!searchItemOrCot.trim()} className="btn bg-gray-600 text-white hover:bg-gray-700">
                   <Plus size={20} /> Genérico
                 </button>
               </div>
