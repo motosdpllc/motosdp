@@ -12,7 +12,6 @@ const navItems = [
   { href: '/dashboard/scanner', label: 'Escanear recepción', icon: ScanLine },
   { divider: true, label: 'COMPRAS' },
   { href: '/dashboard/nuevo', label: '+ Nuevo ítem', icon: Package },
-  { href: '/dashboard/importar', label: '↑ Importar masivo', icon: Upload },
   { divider: true, label: 'VENTAS' },
   { href: '/dashboard/ventas', label: '+ Nueva venta', icon: ShoppingCart },
   { href: '/dashboard/cotizaciones', label: 'Cotizaciones', icon: FileText },
