@@ -9,7 +9,7 @@ import SelectorCotizacion from './SelectorCotizacion'
 const MARCAS = [{ v: 'K', l: 'Kawasaki (K)' }, { v: 'Y', l: 'Yamaha (Y)' }, { v: 'S', l: 'Suzuki (S)' }, { v: 'H', l: 'Honda (H)' }, { v: 'HD', l: 'Harley-Davidson (HD)' }, { v: 'OTHER', l: 'Otra...' }]
 const SUBCODIGOS = [{ v: 'M', l: 'M – Motor' }, { v: 'C', l: 'C – Carbureción' }, { v: 'E', l: 'E – Electricidad' }, { v: 'T', l: 'T – Transmisión' }, { v: 'F', l: 'F – Frenos' }, { v: 'S', l: 'S – Suspensión/Chasis' }, { v: 'X', l: 'X – Carrocería' }, { v: 'I', l: 'I – Iluminación' }]
 
-// --- NUEVAS UBICACIONES ---
+// --- NUEVAS UBICACIONES Y DESTINOS CON LA LÓGICA CLARIFICADA ---
 const UBICACIONES_FISICAS = ['Proveedor','En tránsito','En tránsito a Daniel','Daniel','Pablo','Blue Mail','Tato','Tránsito a Bs As','Stock EEUU', 'Stock España', 'Stock Argentina', 'En Mano', 'Entregado']
 const DESTINOS_FINALES = ['Stock EEUU', 'Stock España', 'Stock Argentina', 'Venta Argentina', 'Venta Internacional', 'Uso Propio', 'Stock Internacional']
 
@@ -50,7 +50,7 @@ interface ItemForm {
   link_publicacion?: string
   codigo: string
   pendiente_compra?: boolean
-  cantidad: number // <-- CANTIDAD AGREGADA
+  cantidad: number 
 }
 
 const EMPTY_ITEM: ItemForm = {
@@ -65,10 +65,10 @@ const EMPTY_ITEM: ItemForm = {
   costo_envio: 0,
   taxes: 0, // Directo
   reembolsos: 0,
-  ubicacion: 'Proveedor',
-  destino: 'Stock EEUU',
+  ubicacion: 'Proveedor', // Valor inicial sugerido
+  destino: 'Stock EEUU', // Valor inicial sugerido
   fecha_compra: new Date().toISOString().split('T')[0],
-  cantidad: 1, // <-- CANTIDAD INICIAL
+  cantidad: 1, 
 }
 
 function NuevoForm() {
@@ -118,8 +118,8 @@ function NuevoForm() {
             producto: data.producto || '',
             codigo: data.codigo || '',
             ubicacion: data.ubicacion || 'Proveedor',
-            destino: data.destino === 'Vendido' ? 'Venta Argentina' : (data.destino || 'Stock EEUU'),
-            marca_custom: '',
+            destino: data.destino && data.destino.startsWith('Venta') ? 'Venta Argentina' : (data.destino || 'Stock EEUU'), // Ajuste para el switch
+            marca_custom: '', // Para edición, no existe en DB, pero lo necesitamos para la UI si marca es 'OTHER'
             link_producto: data.link_producto || '',
             nro_orden: data.nro_orden || '',
             tracking_compra: data.tracking_compra || '',
@@ -139,7 +139,7 @@ function NuevoForm() {
             tipo_envio: data.tipo_envio || 'aereo',
             estado_pago: data.estado_pago || '',
             pendiente_compra: data.pendiente_compra || false,
-            cantidad: data.cantidad || 1, // <-- Cantidad cargada
+            cantidad: data.cantidad || 1, // Cantidad cargada
           })
           setEditId(itemId)
           setCliSearch(data.cliente_nombre || '')
@@ -187,7 +187,11 @@ function NuevoForm() {
 
   useEffect(() => {
     // Taxes ahora es un input directo, no calculado como taxes11
-    const imp = f.importe || 0, env = f.costo_envio || 0, tax = f.taxes || 0, ree = f.reembolsos || 0, ven = parseFloat(f.precio_venta as any) || 0
+    const imp = f.importe || 0
+    const env = f.costo_envio || 0
+    const tax = f.taxes || 0
+    const ree = f.reembolsos || 0
+    const ven = parseFloat(f.precio_venta as any) || 0
     const costo = (imp * f.cantidad) + (env * f.cantidad) + (tax * f.cantidad) - (ree * f.cantidad) // Costo total del ítem con cantidad
     setCalc({ costo_total: costo, ganancia: ven - costo })
   }, [f.importe, f.costo_envio, f.taxes, f.reembolsos, f.precio_venta, f.cantidad]) // Incluir cantidad en la dependencia
@@ -235,7 +239,7 @@ function NuevoForm() {
     e.preventDefault()
     if (!f.producto.trim()) { toast.error('El producto es obligatorio'); return }
     if (!f.codigo.trim()) { toast.error('El código es obligatorio'); return }
-    if (f.cantidad <= 0) { toast.error('La cantidad debe ser mayor que 0'); return } // Validación de cantidad
+    if (f.cantidad <= 0) { toast.error('La cantidad debe ser mayor que 0'); return }
     if (tipoCarga === 'Venta' && !f.cliente_id) { toast.error('Falta seleccionar el cliente para consolidar la Venta'); return }
 
     setSaving(true)
@@ -280,14 +284,18 @@ function NuevoForm() {
         link_publicacion: f.link_publicacion || null,
         updated_at: new Date().toISOString(),
         pendiente_compra: isPendienteCompra,
-        cantidad: f.cantidad, // <-- CANTIDAD AGREGADA AL PAYLOAD
+        cantidad: f.cantidad,
       }
 
       if (editId) {
         await supabase.from('items').update(payload).eq('id', editId)
         toast.success('Ítem actualizado ✓')
       } else {
-        await supabase.from('items').insert([payload])
+        const { error } = await supabase.from('items').insert([payload]) // Insertamos el array
+        if (error) { // <-- CAPTURA EL ERROR AQUÍ
+          console.error("Error al insertar ítem:", error);
+          throw new Error(error.message);
+        }
         toast.success('Ítem guardado ✓')
       }
       router.push('/dashboard/inventario')
