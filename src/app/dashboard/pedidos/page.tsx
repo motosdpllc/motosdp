@@ -1,54 +1,81 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { supabase, fmtDate, fmt, type Cliente, type Item, type PedidoCliente } from '@/lib/supabase'
+import { useState, useEffect, useRef } from 'react'
+import { supabase, fmtDate, fmt, type Cliente, type Item, type PedidoCliente, type CotizacionItem } from '@/lib/supabase'
 import toast from 'react-hot-toast'
-import { Search, Plus, Package, CheckCircle } from 'lucide-react'
+import { Search, Plus, Package, CheckCircle, List } from 'lucide-react'
 
 export default function PedidosPage() {
   const [clientes, setClientes] = useState<any[]>([])
   const [selectedCli, setSelectedCli] = useState<Cliente | null>(null)
-  const [search, setSearch] = useState('') // No se usa actualmente
   const [pedidos, setPedidos] = useState<any[]>([])
   const [itemsCli, setItemsCli] = useState<any[]>([])
-  const [nuevaDesc, setNuevaDesc] = useState('')
+  const [cotizacionesCli, setCotizacionesCli] = useState<any[]>([]) // Cotizaciones del cliente
   const [searchCli, setSearchCli] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
+
+  const [searchItemOrCot, setSearchItemOrCot] = useState('') // Búsqueda para ítems o cotizaciones
+  const [showItemOrCotDrop, setShowItemOrCotDrop] = useState(false)
+  const itemOrCotDropRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     supabase.from('clientes').select('*').order('nombre').then(({ data }) => setClientes(data || []))
   }, [])
 
-  const filteredCli = clientes.filter((c: Cliente) => c.nombre.toLowerCase().includes(searchCli.toLowerCase())).slice(0, 6)
+  const filteredCli = clientes.filter((c: Cliente) => searchCli && c.nombre.toLowerCase().includes(searchCli.toLowerCase())).slice(0, 6)
 
   const selectCliente = async (cli: Cliente) => {
     setSelectedCli(cli)
     setSearchCli(cli.nombre)
     setShowDropdown(false)
-    // Load pedidos and items
-    const [pedRes, itemRes] = await Promise.all([
+    
+    // Cargar pedidos, ítems del inventario del cliente y cotizaciones aprobadas del cliente
+    const [pedRes, itemRes, cotRes] = await Promise.all([
       supabase.from('pedidos_cliente').select('*').eq('cliente_id', cli.id).order('created_at', { ascending: false }),
-      supabase.from('items').select('*').eq('cliente_id', cli.id).order('created_at', { ascending: false })
+      supabase.from('items').select('*').or(`cliente_id.eq.${cli.id},cliente_nombre.ilike.${cli.nombre}`).order('created_at', { ascending: false }),
+      supabase.from('cotizaciones').select('id, nro, cotizacion_items(*)').eq('cliente_id', cli.id).order('nro')
     ])
     setPedidos(pedRes.data || [])
     setItemsCli(itemRes.data || [])
+    
+    // Filtrar solo los ítems "activos" de las cotizaciones
+    const approvedCotItems: CotizacionItem[] = [];
+    (cotRes.data || []).forEach((cot: any) => {
+        (cot.cotizacion_items || []).filter((ci: CotizacionItem) => ci.estado === 'activo').forEach((ci: CotizacionItem) => {
+            approvedCotItems.push({ ...ci, _cotNro: cot.nro }); // Añadimos el nro de cotización para mostrar
+        });
+    });
+    setCotizacionesCli(approvedCotItems);
   }
 
-  const agregarPedido = async () => {
-    if (!nuevaDesc.trim() || !selectedCli) return
-    // Try to find matching item - check x.destino !== 'Vendido'
-    const match = itemsCli.find(x => x.producto.toLowerCase().includes(nuevaDesc.toLowerCase()) && x.destino !== 'Vendido' && x.destino !== 'Cancelado')
+  const agregarPedido = async (selected: { type: 'item' | 'cotizacion_item', data: any }) => {
+    if (!selectedCli) return
+
+    let item_id = null;
+    let cotizacion_item_id = null;
+    let descripcion = selected.data.producto || selected.data.descripcion; // Descripción del pedido
     
+    if (selected.type === 'item') {
+      item_id = selected.data.id;
+      descripcion = `${selected.data.codigo || selected.data.producto} (${selected.data.oem || 'N/A'})`;
+    } else if (selected.type === 'cotizacion_item') {
+      cotizacion_item_id = selected.data.id;
+      descripcion = `${selected.data.codigo || selected.data.descripcion} (Cot: ${selected.data._cotNro})`;
+    }
+
     try {
       const { data, error } = await supabase.from('pedidos_cliente').insert({
         cliente_id: selectedCli.id,
-        descripcion: nuevaDesc.trim(),
-        item_id: match?.id || null,
+        descripcion: descripcion,
+        item_id: item_id,
+        cotizacion_item_id: cotizacion_item_id,
+        fecha_pedido: new Date().toISOString()
       }).select().single()
 
       if (error) throw error
 
       if (data) setPedidos(p => [data, ...p])
-      setNuevaDesc('')
+      setSearchItemOrCot('');
+      setShowItemOrCotDrop(false);
       toast.success('Ítem agregado al pedido')
     } catch (error: any) {
       toast.error('Error al agregar pedido: ' + error.message)
@@ -85,14 +112,39 @@ export default function PedidosPage() {
   }
 
   const getItemStatus = (pedido: PedidoCliente) => {
-    const item = itemsCli.find(x => x.id === pedido.item_id)
-    if (!item) return null
-    // Devolvemos la ubicación actual si existe
-    return item.ubicacion
+    if (pedido.item_id) {
+      const item = itemsCli.find(x => x.id === pedido.item_id)
+      return item?.ubicacion || 'Inventario (Desconocido)'
+    }
+    if (pedido.cotizacion_item_id) {
+      // Si el pedido está vinculado a un item de cotización, mostramos su estado
+      const cotItem = cotizacionesCli.find(x => x.id === pedido.cotizacion_item_id);
+      return cotItem ? `Cotización ${cotItem._cotNro} (Activo)` : 'Cotización (Desconocido)';
+    }
+    return 'Ítem genérico';
   }
 
   const pendientes = pedidos.filter(p => !p.entregado)
   const entregados = pedidos.filter(p => p.entregado)
+
+  // Items y Cotizaciones filtradas para el selector
+  const combinedSearchResults = [
+    ...(itemsCli || [])
+      .filter((x: any) => 
+        (x.producto || '').toLowerCase().includes(searchItemOrCot.toLowerCase()) || 
+        (x.codigo || '').toLowerCase().includes(searchItemOrCot.toLowerCase()) ||
+        (x.oem || '').toLowerCase().includes(searchItemOrCot.toLowerCase())
+      )
+      .map((x: any) => ({ type: 'item', data: x })),
+    ...(cotizacionesCli || [])
+      .filter((x: any) => 
+        (x.descripcion || '').toLowerCase().includes(searchItemOrCot.toLowerCase()) ||
+        (x.codigo || '').toLowerCase().includes(searchItemOrCot.toLowerCase()) ||
+        (x._cotNro || '').toLowerCase().includes(searchItemOrCot.toLowerCase())
+      )
+      .map((x: any) => ({ type: 'cotizacion_item', data: x })),
+  ].slice(0, 10); // Limitar resultados
+
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -142,23 +194,44 @@ export default function PedidosPage() {
               </div>
             </div>
 
-            {/* Agregar ítem al pedido */}
+            {/* Agregar ítem al pedido - Selector Combinado */}
             <div className="mb-8 p-6 bg-green-50 rounded-lg border-green-200 border">
               <h2 className="text-xl font-bold text-green-800 mb-4">Agregar ítem al pedido</h2>
-              <div className="flex gap-3">
+              <div className="relative flex gap-3">
                 <input
                   type="text"
-                  value={nuevaDesc}
-                  onChange={e => setNuevaDesc(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') agregarPedido() }}
-                  placeholder="Descripción del ítem (ej: Filtro de aire)"
+                  value={searchItemOrCot}
+                  onChange={e => { setSearchItemOrCot(e.target.value); setShowItemOrCotDrop(true) }}
+                  onFocus={() => setShowItemOrCotDrop(true)}
+                  placeholder="Buscar ítem o cotización..."
                   className="flex-1 border rounded px-3 py-2"
                 />
-                <button type="button" onClick={agregarPedido} className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-bold">
-                  Agregar
+                {showItemOrCotDrop && combinedSearchResults.length > 0 && (
+                  <div ref={itemOrCotDropRef} className="absolute top-full left-0 right-0 bg-white border rounded mt-1 shadow-lg z-10 max-h-60 overflow-y-auto">
+                    {combinedSearchResults.map((result: any) => (
+                      <button
+                        key={`${result.type}-${result.data.id}`}
+                        type="button"
+                        onClick={e => { e.preventDefault(); agregarPedido(result); }}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-100 border-b last:border-b-0"
+                      >
+                        <p className="font-bold">
+                          {result.type === 'item' && `Inventario: ${result.data.codigo || result.data.producto} (${result.data.oem || 'N/A'})`}
+                          {result.type === 'cotizacion_item' && `Cotización: ${result.data._cotNro} - ${result.data.descripcion} (${result.data.codigo || 'N/A'})`}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {result.type === 'item' && `Ubicación: ${result.data.ubicacion || 'N/A'} - Venta: ${fmt(result.data.precio_venta)}`}
+                          {result.type === 'cotizacion_item' && `Precio: ${fmt(result.data.precio_venta)}`}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <button type="button" onClick={() => agregarPedido({ type: 'item', data: { producto: searchItemOrCot, id: null } })} disabled={!searchItemOrCot.trim()} className="btn bg-green-600 text-white hover:bg-green-700">
+                  <Plus size={20} /> Genérico
                 </button>
               </div>
-              <p className="text-sm text-gray-600 mt-2">Se buscará un ítem disponible en el inventario con esta descripción.</p>
+              <p className="text-sm text-gray-600 mt-2">Buscá un ítem del inventario o una cotización aprobada.</p>
             </div>
 
 
