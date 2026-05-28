@@ -253,7 +253,7 @@ export default function ImportarPage() {
         // Lógica de pendiente_compra (desde NuevoItem)
         const isPendienteCompra = (item.destino && item.destino.startsWith('Venta')) && (!item.fecha_compra || item.fecha_compra.trim() === '');
 
-        await supabase.from('items').insert({
+        const { error } = await supabase.from('items').insert({
           producto: item.producto,
           oem: item.oem || null,
           importe: item.importe_unitario,
@@ -274,6 +274,10 @@ export default function ImportarPage() {
           eta: item.eta || null, // Desde Excel
           pendiente_compra: isPendienteCompra // Lógica de pendiente de compra para importación
         })
+
+        if (error) {
+          throw new Error(`Error al insertar ${item.producto}: ${error.message}`);
+        }
       }
       toast.success(`✓ ${seleccionados.length} ítem${seleccionados.length > 1 ? 's' : ''} importados`, { id: tid })
       setGuardando(false); setPaso('listo')
@@ -531,4 +535,18 @@ export default function ImportarPage() {
                 <li>`peso`</li>
                 <li>`Costo Envío Unitario`</li>
                 <li>`costo_total`</li>
-                <li>`eta`
+                <li>`eta` (YYYY-MM-DD)</li>
+                <li>`tracking_compra`</li>
+                <li>`ubicacion`</li>
+                <li>`destino`</li>
+                <li>`Taxes Unitario`</li>
+                <li>`Reembolsos Unitario`</li>
+              </ul>
+              <p className="text-xs text-gray-500 mt-2">Los campos numéricos deben usar punto como separador decimal.</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
