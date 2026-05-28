@@ -47,6 +47,7 @@ export interface Item {
   ganancia?: number
   cliente_id?: string
   cliente_nombre?: string
+  proveedor_id?: string
   ubicacion?: Ubicacion
   destino?: Destino
   estado_pago?: EstadoPago
@@ -63,6 +64,15 @@ export interface Item {
   fecha_recibido?: string
   created_at?: string
   updated_at?: string
+  pub_ebay?: boolean
+  pub_mercadolibre?: boolean
+  pub_amazon?: boolean
+  pub_wallapop?: boolean
+  pub_facebook?: boolean
+  pub_web_propia?: boolean
+  pendiente_compra?: boolean // Nueva columna
+  cantidad?: number // Nueva columna
+  fecha_entregado?: string // Nueva columna
 }
 
 export interface Cliente {
@@ -88,6 +98,12 @@ export interface Cotizacion {
   precio_final?: number
   estado?: string
   items?: CotizacionItem[]
+  fecha_envio_programado?: string
+  hora_programada?: string
+  enviar_automatico?: boolean
+  mensaje_whatsapp?: string
+  mostrar_links?: boolean
+  mostrar_precios_individuales?: boolean
 }
 
 export interface CotizacionItem {
@@ -104,7 +120,7 @@ export interface CotizacionItem {
   proveedor_elegido: 'basoli' | 'partzilla' | 'otra' | null
   proveedor_otro_nombre: string
   proveedor_otro_link: string
-  estado?: string // <--- NUEVO CAMPO
+  estado?: string // Agregado el estado aquí
 }
 
 export interface Alerta {
@@ -130,8 +146,21 @@ export interface PedidoCliente {
   fecha_pedido?: string
   fecha_entrega?: string
   notas?: string
-  cotizacion_item_id?: string // <-- NUEVO CAMPO
+  cotizacion_item_id?: string // Nuevo campo
 }
+
+export interface PagoStripe {
+  id: string
+  cliente_id?: string
+  nro_venta?: string
+  monto: number
+  fecha_pago: string
+  descripcion?: string
+  stripe_id?: string
+  status: string
+  created_at?: string
+}
+
 
 // Helper functions
 export async function getNextCounter(key: string): Promise<number> {
@@ -150,24 +179,12 @@ export function fmtDate(d?: string | null): string {
   return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : d
 }
 
-export function ubicColor(u?: string): string {
-  if (!u) return 'bg-gray-100 text-gray-600'
-  if (u.includes('ránsito')) return 'bg-amber-100 text-amber-700'
-  if (u === 'En Mano') return 'bg-green-100 text-green-700'
-  if (u === 'Vendido') return 'bg-gray-100 text-gray-500'
-  if (u === 'Cancelado') return 'bg-red-100 text-red-700'
-  if (['Daniel', 'Pablo', 'Blue Mail', 'Tato'].includes(u)) return 'bg-blue-100 text-blue-700'
-  return 'bg-gray-100 text-gray-600'
-
-  export interface PagoStripe {
-  id: string
-  cliente_id?: string
-  nro_venta?: string
-  monto: number
-  fecha_pago: string
-  descripcion?: string
-  stripe_id?: string
-  status: string
-  created_at?: string
-}
-}
+// export function ubicColor(u?: string): string { // Esta función ya no se usa y causaba el error
+//   if (!u) return 'bg-gray-100 text-gray-600'
+//   if (u.includes('ránsito')) return 'bg-amber-100 text-amber-700'
+//   if (u === 'En Mano') return 'bg-green-100 text-green-700'
+//   if (u === 'Vendido') return 'bg-gray-100 text-gray-500'
+//   if (u === 'Cancelado') return 'bg-red-100 text-red-700'
+//   if (['Daniel', 'Pablo', 'Blue Mail', 'Tato'].includes(u)) return 'bg-blue-100 text-blue-700'
+//   return 'bg-gray-100 text-gray-600'
+// }
