@@ -115,11 +115,6 @@ export default function ImportarPage() {
       
       setNroOrdenGlobal(parsed.nro_orden || '')
       setProveedorGlobal(parsed.proveedor || '')
-      setTrackingCompraGlobal(parsed.tracking_compra || '') 
-      setEtaGlobal(parsed.eta || '') 
-      setFechaCompraGlobal(parsed.fecha_compra || new Date().toISOString().split('T')[0])
-      setUbicacionGlobal(parsed.ubicacion || 'Proveedor')
-      setDestinoGlobal(parsed.destino || 'Stock EEUU')
       
       const itemsProcesados: ItemImportado[] = (parsed.items || []).map((x: any) => ({
         producto: x.producto || '',
@@ -166,45 +161,46 @@ export default function ImportarPage() {
       const lines = rawPastedText.trim().split('\n');
       const itemsProcesados: ItemImportado[] = [];
       // Columnas esperadas del Excel:
-      // FECHA | Producto | OEM | Cantidad | Importe Unitario | nro_orden | pagina_de_compra | link_producto | peso | Costo Envío Unitario | costo_total | eta | tracking_compra | ubicacion | destino | Taxes Unitario | Reembolsos Unitario
-      const headers = [
-        "fecha_compra", "Producto", "OEM", "Cantidad", "Importe Unitario", 
-        "nro_orden", "pagina_de_compra", "link_producto", "peso", 
-        "Costo Envío Unitario", "costo_total", "eta", "tracking_compra", 
-        "ubicacion", "destino", "Taxes Unitario", "Reembolsos Unitario"
-      ];
+      // 0: fecha_compra, 1: Producto, 2: OEM, 3: Cantidad, 4: Importe Unitario, 5: nro_orden, 6: pagina_de_compra, 7: link_producto, 8: peso, 9: Costo Envío Unitario, 10: costo_total, 11: eta, 12: tracking_compra, 13: ubicacion, 14: destino, 15: Taxes Unitario, 16: Reembolsos Unitario
+      const headersMap = {
+        fecha_compra: 0, Producto: 1, OEM: 2, Cantidad: 3, Importe_Unitario: 4, 
+        nro_orden: 5, pagina_de_compra: 6, link_producto: 7, peso: 8, 
+        Costo_Envio_Unitario: 9, costo_total: 10, eta: 11, tracking_compra: 12, 
+        ubicacion: 13, destino: 14, Taxes_Unitario: 15, Reembolsos_Unitario: 16
+      };
+      const expectedColsCount = Object.keys(headersMap).length;
   
       lines.forEach(line => {
         const cols = line.split('\t').map(col => col.trim());
         
-        if (cols.length < headers.length) { 
-          console.warn('Línea ignorada por formato incorrecto:', line);
+        if (cols.length < expectedColsCount) { 
+          console.warn('Línea ignorada por formato incompleto (faltan columnas):', line);
           return; 
         }
         
-        const importe_unitario = parseFloat(cols[4]) || 0;
-        const costo_envio_unitario = parseFloat(cols[9]) || 0;
-        const taxes_unitario = parseFloat(cols[15]) || 0;
-        const reembolsos_unitario = parseFloat(cols[16]) || 0;
+        const importe_unitario = parseFloat(cols[headersMap.Importe_Unitario]) || 0;
+        const costo_envio_unitario = parseFloat(cols[headersMap.Costo_Envio_Unitario]) || 0;
+        const taxes_unitario = parseFloat(cols[headersMap.Taxes_Unitario]) || 0;
+        const reembolsos_unitario = parseFloat(cols[headersMap.Reembolsos_Unitario]) || 0;
         // Si el costo_total viene del excel, lo usamos, sino lo calculamos
-        const costo_total_item = parseFloat(cols[10]) || (importe_unitario + costo_envio_unitario + taxes_unitario - reembolsos_unitario);
+        const costo_total_item = parseFloat(cols[headersMap.costo_total]) || (importe_unitario + costo_envio_unitario + taxes_unitario - reembolsos_unitario);
 
         itemsProcesados.push({
-          fecha_compra: cols[0] || new Date().toISOString().split('T')[0],
-          producto: cols[1] || '',
-          oem: cols[2] || '',
-          cantidad: parseInt(cols[3]) || 1,
+          fecha_compra: cols[headersMap.fecha_compra] || new Date().toISOString().split('T')[0],
+          producto: cols[headersMap.Producto] || '',
+          oem: cols[headersMap.OEM] || '',
+          cantidad: parseInt(cols[headersMap.Cantidad]) || 1,
           importe_unitario: importe_unitario,
-          nro_orden: cols[5] || '',
-          pagina: cols[6] || '',
-          link_producto: cols[7] || '',
-          peso: parseFloat(cols[8]) || 0,
+          nro_orden: cols[headersMap.nro_orden] || '',
+          pagina: cols[headersMap.pagina_de_compra] || '',
+          link_producto: cols[headersMap.link_producto] || '',
+          peso: parseFloat(cols[headersMap.peso]) || 0,
           costo_envio_unitario: costo_envio_unitario,
           costo_total_unitario: costo_total_item,
-          eta: cols[11] || '',
-          tracking_compra: cols[12] || '',
-          ubicacion: cols[13] || 'Proveedor',
-          destino: cols[14] || 'Stock EEUU',
+          eta: cols[headersMap.eta] || '',
+          tracking_compra: cols[headersMap.tracking_compra] || '',
+          ubicacion: cols[headersMap.ubicacion] || 'Proveedor',
+          destino: cols[headersMap.destino] || 'Stock EEUU',
           taxes_unitario: taxes_unitario,
           reembolsos_unitario: reembolsos_unitario,
           seleccionado: true,
@@ -214,7 +210,7 @@ export default function ImportarPage() {
       });
   
       if (itemsProcesados.length === 0) {
-        throw new Error('No se pudieron procesar los ítems desde los datos pegados. Verifica el formato.');
+        throw new Error('No se pudieron procesar los ítems desde los datos pegados. Verifica el formato o si las columnas están completas.');
       }
       
       setItems(itemsProcesados);
@@ -310,9 +306,9 @@ export default function ImportarPage() {
         </button>
         <h1 className="text-3xl font-bold mb-6">Revisar {items.length} ítems detectados</h1>
 
-        {/* Datos globales de la orden */}
+        {/* Datos globales de la orden (para aplicar a todos los que no vengan en el excel) */}
         <div className="bg-blue-50 p-6 rounded-lg mb-8 border border-blue-200">
-          <h2 className="text-xl font-bold mb-4 text-blue-800">Datos globales de la Orden (Aplicar a todos)</h2>
+          <h2 className="text-xl font-bold mb-4 text-blue-800">Datos globales de la Orden (Aplicar si no viene en el Excel)</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-bold mb-1">Nro. de orden</label>
