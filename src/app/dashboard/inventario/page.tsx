@@ -1,10 +1,10 @@
 'use client'
 import { useState, useEffect, useCallback, Suspense } from 'react'
-import { supabase, fmt, fmtDate, type Item } from '@/lib/supabase'
+import { supabase, fmt, fmtDate, type Item } from '@/lib/supabase' // quitado ubicColor
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import toast from 'react-hot-toast'
-import { CheckCircle } from 'lucide-react'
+import { CheckCircle } from 'lucide-react' // Importa CheckCircle
 
 // --- UBICACIONES ---
 // Las ubicaciones que representan Stock físico en el inventario para el filtro
@@ -216,7 +216,7 @@ function InventarioTable() {
                       {x.pendiente_compra ? '⏳' : '—'}
                     </td>
                     <td className="px-3 py-2 text-center space-x-1">
-                      {!isEntregado && x.destino && x.destino.startsWith('Venta') && ( // Solo si es una venta y no está entregado
+                      {!isEntregado && x.destino === 'Vendido' && ( // Solo si es una venta y no está entregado
                         <button
                           type="button"
                           onClick={() => marcarEntregado(x.id)}
