@@ -130,6 +130,7 @@ export interface PedidoCliente {
   fecha_pedido?: string
   fecha_entrega?: string
   notas?: string
+  cotizacion_item_id?: string // <-- NUEVO CAMPO
 }
 
 // Helper functions
