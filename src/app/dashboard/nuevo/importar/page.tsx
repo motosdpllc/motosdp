@@ -168,39 +168,42 @@ export default function ImportarPage() {
         Costo_Envio_Unitario: 9, costo_total: 10, eta: 11, tracking_compra: 12, 
         ubicacion: 13, destino: 14, Taxes_Unitario: 15, Reembolsos_Unitario: 16
       };
-      const expectedColsCount = Object.keys(headersMap).length;
-  
+      const expectedColsCount = Object.keys(headersMap).length; // Esto es 17
+
       lines.forEach(line => {
         const cols = line.split('\t').map(col => col.trim());
         
-        if (cols.length < expectedColsCount) { 
-          console.warn('Línea ignorada por formato incompleto (faltan columnas):', line);
-          return; 
-        }
+        // No descartes la línea si es más corta, sino asigna valores predeterminados o nulos
+        // if (cols.length < expectedColsCount) { 
+        //   console.warn('Línea ignorada por formato incompleto (faltan columnas):', line);
+        //   return; 
+        // }
         
-        const importe_unitario = parseFloat(cols[headersMap.Importe_Unitario]) || 0;
-        const costo_envio_unitario = parseFloat(cols[headersMap.Costo_Envio_Unitario]) || 0;
-        const taxes_unitario = parseFloat(cols[headersMap.Taxes_Unitario]) || 0;
-        const reembolsos_unitario = parseFloat(cols[headersMap.Reembolsos_Unitario]) || 0;
-        // Si el costo_total viene del excel, lo usamos, sino lo calculamos
-        const costo_total_item = parseFloat(cols[headersMap.costo_total]) || (importe_unitario + costo_envio_unitario + taxes_unitario - reembolsos_unitario);
+        const getCol = (idx: number) => cols[idx] || ''; // Función para obtener columna o vacío
+        const parseNum = (idx: number) => parseFloat(getCol(idx)) || 0;
+
+        const importe_unitario = parseNum(headersMap.Importe_Unitario);
+        const costo_envio_unitario = parseNum(headersMap.Costo_Envio_Unitario);
+        const taxes_unitario = parseNum(headersMap.Taxes_Unitario);
+        const reembolsos_unitario = parseNum(headersMap.Reembolsos_Unitario);
+        const costo_total_item = parseNum(headersMap.costo_total) || (importe_unitario + costo_envio_unitario + taxes_unitario - reembolsos_unitario);
 
         itemsProcesados.push({
-          fecha_compra: cols[headersMap.fecha_compra] || new Date().toISOString().split('T')[0],
-          producto: cols[headersMap.Producto] || '',
-          oem: cols[headersMap.OEM] || '',
-          cantidad: parseInt(cols[headersMap.Cantidad]) || 1,
+          fecha_compra: getCol(headersMap.fecha_compra) || new Date().toISOString().split('T')[0],
+          producto: getCol(headersMap.Producto) || '',
+          oem: getCol(headersMap.OEM) || '',
+          cantidad: parseInt(getCol(headersMap.Cantidad)) || 1,
           importe_unitario: importe_unitario,
-          nro_orden: cols[headersMap.nro_orden] || '',
-          pagina: cols[headersMap.pagina_de_compra] || '',
-          link_producto: cols[headersMap.link_producto] || '',
-          peso: parseFloat(cols[headersMap.peso]) || 0,
+          nro_orden: getCol(headersMap.nro_orden) || '',
+          pagina: getCol(headersMap.pagina_de_compra) || '',
+          link_producto: getCol(headersMap.link_producto) || '',
+          peso: parseFloat(getCol(headersMap.peso)) || 0,
           costo_envio_unitario: costo_envio_unitario,
           costo_total_unitario: costo_total_item,
-          eta: cols[headersMap.eta] || '',
-          tracking_compra: cols[headersMap.tracking_compra] || '',
-          ubicacion: cols[headersMap.ubicacion] || 'Proveedor',
-          destino: cols[headersMap.destino] || 'Stock EEUU',
+          eta: getCol(headersMap.eta) || '',
+          tracking_compra: getCol(headersMap.tracking_compra) || '',
+          ubicacion: getCol(headersMap.ubicacion) || 'Proveedor',
+          destino: getCol(headersMap.destino) || 'Stock EEUU',
           taxes_unitario: taxes_unitario,
           reembolsos_unitario: reembolsos_unitario,
           seleccionado: true,
@@ -308,7 +311,7 @@ export default function ImportarPage() {
 
         {/* Datos globales de la orden (para aplicar a todos los que no vengan en el excel) */}
         <div className="bg-blue-50 p-6 rounded-lg mb-8 border border-blue-200">
-          <h2 className="text-xl font-bold mb-4 text-blue-800">Datos globales de la Orden (Aplicar si no viene en el Excel)</h2>
+          <h2 className="text-xl font-bold mb-4 text-blue-800">Datos globales de la Orden (Aplicar a todos)</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-bold mb-1">Nro. de orden</label>
@@ -528,18 +531,4 @@ export default function ImportarPage() {
                 <li>`peso`</li>
                 <li>`Costo Envío Unitario`</li>
                 <li>`costo_total`</li>
-                <li>`eta` (YYYY-MM-DD)</li>
-                <li>`tracking_compra`</li>
-                <li>`ubicacion`</li>
-                <li>`destino`</li>
-                <li>`Taxes Unitario`</li>
-                <li>`Reembolsos Unitario`</li>
-              </ul>
-              <p className="text-xs text-gray-500 mt-2">Los campos numéricos deben usar punto como separador decimal.</p>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
+                <li>`eta`
