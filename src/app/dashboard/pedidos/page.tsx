@@ -42,7 +42,7 @@ export default function PedidosPage() {
     setPedidos(pedRes.data || [])
     setItemsCli(itemRes.data || [])
     
-    // Filtrar solo los ítems "activos" de las cotizaciones y tiparlos
+    // Filtrar solo los ítems "activos" de las cotizaciones
     const approvedCotItems: ApprovedCotItem[] = [];
     (cotRes.data || []).forEach((cot: any) => {
         (cot.cotizacion_items || []).filter((ci: CotizacionItem) => ci.estado === 'activo').forEach((ci: CotizacionItem) => {
