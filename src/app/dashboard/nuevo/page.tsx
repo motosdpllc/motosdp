@@ -9,7 +9,7 @@ import SelectorCotizacion from './SelectorCotizacion'
 const MARCAS = [{ v: 'K', l: 'Kawasaki (K)' }, { v: 'Y', l: 'Yamaha (Y)' }, { v: 'S', l: 'Suzuki (S)' }, { v: 'H', l: 'Honda (H)' }, { v: 'HD', l: 'Harley-Davidson (HD)' }, { v: 'OTHER', l: 'Otra...' }]
 const SUBCODIGOS = [{ v: 'M', l: 'M – Motor' }, { v: 'C', l: 'C – Carbureción' }, { v: 'E', l: 'E – Electricidad' }, { v: 'T', l: 'T – Transmisión' }, { v: 'F', l: 'F – Frenos' }, { v: 'S', l: 'S – Suspensión/Chasis' }, { v: 'X', l: 'X – Carrocería' }, { v: 'I', l: 'I – Iluminación' }]
 
-// --- NUEVAS UBICACIONES Y DESTINOS CON LA LÓGICA CLARIFICADA ---
+// --- NUEVAS UBICACIONES ---
 const UBICACIONES_FISICAS = ['Proveedor','En tránsito','En tránsito a Daniel','Daniel','Pablo','Blue Mail','Tato','Tránsito a Bs As','Stock EEUU', 'Stock España', 'Stock Argentina', 'En Mano', 'Entregado']
 const DESTINOS_FINALES = ['Stock EEUU', 'Stock España', 'Stock Argentina', 'Venta Argentina', 'Venta Internacional', 'Uso Propio', 'Stock Internacional']
 
@@ -118,7 +118,7 @@ function NuevoForm() {
             producto: data.producto || '',
             codigo: data.codigo || '',
             ubicacion: data.ubicacion || 'Proveedor',
-            destino: data.destino && data.destino.startsWith('Venta') ? 'Venta Argentina' : (data.destino || 'Stock EEUU'), // Ajuste para el switch
+            destino: data.destino && data.destino.startsWith('Venta') ? 'Venta Argentina' : (data.destino || 'Stock EEUU'),
             marca_custom: '', // Para edición, no existe en DB, pero lo necesitamos para la UI si marca es 'OTHER'
             link_producto: data.link_producto || '',
             nro_orden: data.nro_orden || '',
@@ -186,7 +186,6 @@ function NuevoForm() {
 
 
   useEffect(() => {
-    // Taxes ahora es un input directo, no calculado como taxes11
     const imp = f.importe || 0
     const env = f.costo_envio || 0
     const tax = f.taxes || 0
@@ -194,7 +193,7 @@ function NuevoForm() {
     const ven = parseFloat(f.precio_venta as any) || 0
     const costo = (imp * f.cantidad) + (env * f.cantidad) + (tax * f.cantidad) - (ree * f.cantidad) // Costo total del ítem con cantidad
     setCalc({ costo_total: costo, ganancia: ven - costo })
-  }, [f.importe, f.costo_envio, f.taxes, f.reembolsos, f.precio_venta, f.cantidad]) // Incluir cantidad en la dependencia
+  }, [f.importe, f.costo_envio, f.taxes, f.reembolsos, f.precio_venta, f.cantidad])
 
   useEffect(() => {
     if (f.tipo_envio === 'aereo') {
@@ -291,8 +290,8 @@ function NuevoForm() {
         await supabase.from('items').update(payload).eq('id', editId)
         toast.success('Ítem actualizado ✓')
       } else {
-        const { error } = await supabase.from('items').insert([payload]) // Insertamos el array
-        if (error) { // <-- CAPTURA EL ERROR AQUÍ
+        const { error } = await supabase.from('items').insert([payload])
+        if (error) {
           console.error("Error al insertar ítem:", error);
           throw new Error(error.message);
         }
