@@ -7,7 +7,7 @@ import toast from 'react-hot-toast'
 const MULTIPLICADOR = 1.11
 
 interface CotizacionItem {
-  id?: string
+  id: string // UUID ahora
   cotizacion_id?: string
   cantidad: number
   codigo: string
@@ -48,6 +48,7 @@ interface Cliente {
 }
 
 const ITEM_VACIO: CotizacionItem = {
+  id: '', // Debe tener un ID, si es nuevo, se generará
   cantidad: 1,
   codigo: '',
   descripcion: '',
@@ -158,11 +159,11 @@ export default function CotizacionesPage() {
     }
   }
 
-  const seleccionarCliente = (cliente: Cliente) => {
-    setClienteId(cliente.id)
-    setClienteNombre(cliente.nombre)
-    setBusquedaCliente(cliente.nombre)
-    setMostrarListaClientes(false)
+  const seleccionarCliente = (cli: Cliente) => {
+    setClienteId(cli.id)
+    setClienteNombre(cli.nombre)
+    setBusquedaCliente(cli.nombre)
+    setShowCliDrop(false)
   }
 
   const procesarPegadoMasivo = () => {
@@ -172,14 +173,15 @@ export default function CotizacionesPage() {
     }
 
     try {
-      const lineas = rawText.split('\n').filter(l => l.trim())
+      const lines = rawText.split('\n').filter(l => l.trim())
       const nuevosItems: CotizacionItem[] = []
 
-      lineas.forEach(linea => {
-        const cols = linea.split('\t')
+      lines.forEach(line => {
+        const cols = line.split('\t')
         if (cols.length < 8) return
 
         const nuevoItem: CotizacionItem = {
+          id: crypto.randomUUID(), // Generar un ID para el nuevo ítem
           cantidad: parseInt(cols[0]) || 1,
           codigo: cols[1]?.trim() || '',
           descripcion: cols[2]?.trim() || '',
@@ -199,12 +201,12 @@ export default function CotizacionesPage() {
       })
 
       while (nuevosItems.length < 30) {
-        nuevosItems.push({ ...ITEM_VACIO })
+        nuevosItems.push({ ...ITEM_VACIO, id: crypto.randomUUID() }) // Asegurar ID único
       }
 
       setItems(nuevosItems.slice(0, 30))
       setRawText('')
-      toast.success(`✅ Se procesaron ${lineas.length} filas`)
+      toast.success(`✅ Se procesaron ${lines.length} filas`)
     } catch (err) {
       toast.error('Error al procesar')
     }
@@ -266,7 +268,7 @@ export default function CotizacionesPage() {
       setMensajeWhatsapp('')
       setMostrarLinks(false)
       setMostrarPreciosIndividuales(true)
-      setItems(Array(30).fill(null).map(() => ({ ...ITEM_VACIO })))
+      setItems(Array(30).fill(null).map(() => ({ ...ITEM_VACIO, id: crypto.randomUUID() }))) // Asegurar ID único
       setItemActivoIndex(null)
       setEditId(null)
       setVista('editar')
@@ -279,12 +281,12 @@ export default function CotizacionesPage() {
     setEditId(cot.id)
     setNro(cot.nro)
     setFecha(cot.fecha)
-    setClienteId(cot.cliente_id)
-    setClienteNombre(cot.cliente_nombre)
-    setBusquedaCliente(cot.cliente_nombre)
-    setDestino(cot.destino)
-    setVin(cot.vin)
-    setPrecioFinal(cot.precio_final)
+    setClienteId(cot.cliente_id || '') // Asegurar string
+    setClienteNombre(cot.cliente_nombre || '') // Asegurar string
+    setBusquedaCliente(cot.cliente_nombre || '')
+    setDestino(cot.destino || 'AR') // Asegurar string
+    setVin(cot.vin || '') // Asegurar string
+    setPrecioFinal(cot.precio_final || 0)
     setFechaEnvioProgramado(cot.fecha_envio_programado || '')
     setHoraEnvioProgramado(cot.hora_programada || '')
     setEnviarAutomatico(cot.enviar_automatico || false)
@@ -294,8 +296,7 @@ export default function CotizacionesPage() {
 
     const itemsCargados = (cot.cotizacion_items || []).map(i => ({
       ...i,
-      id: i.id,
-      cotizacion_id: i.cotizacion_id,
+      id: i.id || crypto.randomUUID(), // Asegurar que tenga un ID
       cantidad: i.cantidad || 1,
       codigo: i.codigo || '',
       descripcion: i.descripcion || '',
@@ -304,14 +305,14 @@ export default function CotizacionesPage() {
       partzilla: i.partzilla || 0,
       otra: i.otra || 0,
       precio_venta: i.precio_venta || 0,
-      proveedor_elegido: (i.proveedor_elegido as any) || null,
+      proveedor_elegido: i.proveedor_elegido || null,
       proveedor_otro_nombre: i.proveedor_otro_nombre || '',
       proveedor_otro_link: i.proveedor_otro_link || '',
       estado: i.estado || 'activo' // Cargar el estado
     })) as CotizacionItem[]
 
     while (itemsCargados.length < 30) {
-      itemsCargados.push({ ...ITEM_VACIO })
+      itemsCargados.push({ ...ITEM_VACIO, id: crypto.randomUUID() }) // Asegurar ID único
     }
 
     setItems(itemsCargados)
@@ -361,22 +362,21 @@ export default function CotizacionesPage() {
       }
 
       if (cotizacionId) {
-        await supabase.from('cotizacion_items').delete().eq('cotizacion_id', cotizacionId)
+        // Filtramos items vacíos antes de borrar/insertar
+        const itemsToProcess = items.filter(i => i.codigo.trim() !== '' || i.descripcion.trim() !== '');
 
-        const itemsAGuardar = items
-          .filter(i => i.codigo.trim() !== '' || i.descripcion.trim() !== '')
-          .map(i => ({
-            cotizacion_id: cotizacionId,
-            cantidad: i.cantidad, codigo: i.codigo, descripcion: i.descripcion,
-            peso: i.peso, basoli: i.basoli, partzilla: i.partzilla,
-            otra: i.otra, precio_venta: i.precio_venta, proveedor_elegido: i.proveedor_elegido,
-            proveedor_otro_nombre: i.proveedor_otro_nombre, proveedor_otro_link: i.proveedor_otro_link,
-            estado: i.estado // Guardar el estado
-          }))
+        // Borramos los items anteriores
+        await supabase.from('cotizacion_items').delete().eq('cotizacion_id', cotizacionId);
 
-        if (itemsAGuardar.length > 0) {
-          const { error } = await supabase.from('cotizacion_items').insert(itemsAGuardar)
-          if (error) throw error
+        // Insertamos los nuevos items (con sus IDs)
+        if (itemsToProcess.length > 0) {
+            const itemsWithCorrectCotId = itemsToProcess.map(i => ({
+                ...i,
+                cotizacion_id: cotizacionId,
+                id: i.id || crypto.randomUUID() // Asegurar que cada ítem tenga un ID
+            }));
+            const { error } = await supabase.from('cotizacion_items').insert(itemsWithCorrectCotId);
+            if (error) throw error;
         }
       }
 
@@ -390,21 +390,19 @@ export default function CotizacionesPage() {
           window.open(`https://wa.me/${clienteData.telefono}?text=${mensaje}`, '_blank')
         }
         const { data: cots } = await supabase
-          .from('cotizaciones').select('*, cotizacion_items(*)')
-          .order('created_at', { ascending: false })
+          .from('cotizaciones').select('*, cotizacion_items(*)').order('created_at', { ascending: false })
         if (cots) setCotizaciones(cots as Cotizacion[])
         setEnviandoWhatsapp(false)
       } else {
         const { data: cots } = await supabase
-          .from('cotizaciones').select('*, cotizacion_items(*)')
-          .order('created_at', { ascending: false })
+          .from('cotizaciones').select('*, cotizacion_items(*)').order('created_at', { ascending: false })
         if (cots) setCotizaciones(cots as Cotizacion[])
       }
 
       setVista('lista')
       setEditId(null)
-    } catch (err) {
-      toast.error('❌ Error')
+    } catch (err: any) {
+      toast.error('❌ Error al guardar cotización: ' + err.message)
       console.error(err)
     } finally {
       setGuardando(false)
@@ -659,7 +657,7 @@ export default function CotizacionesPage() {
     }
 
     const mensaje = encodeURIComponent(
-      cot.mensaje_whatsapp || `Hola ${cot.cliente_nombre}, te envío la cotización ${cot.nro}`
+      cot.mensaje_whatsapp || `Hola ${clienteNombre}, te envío la cotización ${nro}`
     )
     window.open(`https://wa.me/${cliente.telefono}?text=${mensaje}`, '_blank')
   }
