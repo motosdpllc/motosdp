@@ -178,13 +178,3 @@ export function fmtDate(d?: string | null): string {
   const p = d.split('-')
   return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : d
 }
-
-// export function ubicColor(u?: string): string { // Esta función ya no se usa y causaba el error
-//   if (!u) return 'bg-gray-100 text-gray-600'
-//   if (u.includes('ránsito')) return 'bg-amber-100 text-amber-700'
-//   if (u === 'En Mano') return 'bg-green-100 text-green-700'
-//   if (u === 'Vendido') return 'bg-gray-100 text-gray-500'
-//   if (u === 'Cancelado') return 'bg-red-100 text-red-700'
-//   if (['Daniel', 'Pablo', 'Blue Mail', 'Tato'].includes(u)) return 'bg-blue-100 text-blue-700'
-//   return 'bg-gray-100 text-gray-600'
-// }
