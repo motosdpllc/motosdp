@@ -315,7 +315,7 @@ export default function ImportarPage() {
 
         {/* Datos globales de la orden (para aplicar a todos los que no vengan en el excel) */}
         <div className="bg-blue-50 p-6 rounded-lg mb-8 border border-blue-200">
-          <h2 className="text-xl font-bold mb-4 text-blue-800">Datos globales de la Orden (Aplicar a todos)</h2>
+          <h2 className="text-xl font-bold mb-4 text-blue-800">Datos globales de la Orden (Aplicar si no viene en el Excel)</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-bold mb-1">Nro. de orden</label>
