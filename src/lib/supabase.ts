@@ -107,7 +107,7 @@ export interface Cotizacion {
 }
 
 export interface CotizacionItem {
-  id?: string
+  id: string // UUID ahora
   cotizacion_id?: string
   cantidad: number
   codigo: string
