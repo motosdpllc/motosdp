@@ -62,19 +62,21 @@ export default function ClientesPage() {
         throw error;
       }
 
-      console.log('Cliente eliminado de Supabase:', data); // Ver si Supabase realmente devuelve algo
+      console.log('Cliente eliminado de Supabase:', data);
       toast.success('Cliente eliminado');
       setSelectedCli(null);
       setVista('agenda');
       await load(); // Recarga la lista después de eliminar
-    } catch (err) {
+    } catch (err: any) {
       console.error('ERROR AL ELIMINAR:', err);
-      toast.error('Error al eliminar: ' + (err instanceof Error ? err.message : 'Error desconocido'));
+      toast.error('Error al eliminar: ' + (err.message || 'Error desconocido'));
     }
   }
 
   const verDetalle = async (c: Cliente) => {
-    setSelectedCli(c); setVista('detalle'); setLoadingDetalle(true)
+    setSelectedCli(c)
+    setVista('detalle')
+    setLoadingDetalle(true)
     try {
       const [itemsRes, cotsRes] = await Promise.all([
         supabase.from('items').select('*').or(`cliente_id.eq.${c.id},cliente_nombre.ilike.${c.nombre}`).order('created_at', { ascending: false }),
@@ -82,7 +84,9 @@ export default function ClientesPage() {
       ])
       setItemsCli(itemsRes.data || [])
       setCotsCli(cotsRes.data || [])
-    } catch (err) { toast.error('Error al cargar detalles') }
+    } catch (err) {
+      toast.error('Error al cargar detalles')
+    }
     setLoadingDetalle(false)
   }
 
