@@ -33,7 +33,6 @@ export default function SelectorCotizacion({ cotizaciones, setF, setCliSearch, c
       costo_envio: it.costo_envio?.toString() || p.costo_envio,
       cliente_id: cot.cliente_id || p.cliente_id,
       cliente_nombre: cot.cliente_nombre || p.cliente_nombre,
-      // Aquí podrías sumar otros campos si es necesario
     }))
     if (cot.cliente_nombre) setCliSearch(cot.cliente_nombre)
     setShowCotDrop(false)
