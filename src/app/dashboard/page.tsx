@@ -25,7 +25,7 @@ export default function DashboardPage() {
           .select('ubicacion')
           .not('ubicacion', 'eq', 'Vendido')
           .not('ubicacion', 'eq', 'Cancelado')
-          .not('ubicacion', 'eq', 'Entregado') // Excluir Entregado del conteo de stock
+          .not('ubicacion', 'eq', 'Entregado')
 
 
         const estadosConfig: { [key: string]: { icon: string; color: string; textColor: string } } = {
@@ -52,14 +52,13 @@ export default function DashboardPage() {
           })
         }
 
-        // NO FILTRAMOS NADA, MOSTRAMOS TODO AUNQUE ESTÉ EN CERO
         const resultado: EstadoResumen[] = Object.entries(estadosConfig).map(([nombre, config]) => ({
           nombre,
           icon: config.icon,
           color: config.color,
           textColor: config.textColor,
           count: contador[nombre] || 0
-        })); // <-- Eliminado el .filter()
+        })); 
 
         setEstados(resultado)
       } catch (err) {
