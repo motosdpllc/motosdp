@@ -1,9 +1,15 @@
 'use client'
-import { useState, useEffect, useRef, Suspense } from 'react' // Importamos Suspense
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { supabase, fmt, type Item, type PedidoCliente } from '@/lib/supabase' // Agregamos PedidoCliente
 import { useRouter, useSearchParams } from 'next/navigation'
 import toast from 'react-hot-toast'
 import { X, List, Plus } from 'lucide-react' // Usaremos List para pedidos y Plus para el genérico
+
+// Importación dinámica para VentasForm para evitar problemas de SSR con useSearchParams
+import dynamic from 'next/dynamic';
+
+const DynamicVentasForm = dynamic(() => Promise.resolve(VentasForm), { ssr: false });
+
 
 interface VentaItem {
   id: string; producto: string; oem?: string; codigo?: string
@@ -450,8 +456,8 @@ function VentasForm() {
 
 export default function VentasPage() {
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <Suspense fallback={<div className="p-6 text-center">Cargando...</div>}>
       <VentasForm />
-    </div>
+    </Suspense>
   )
 }
