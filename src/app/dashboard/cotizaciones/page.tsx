@@ -964,4 +964,475 @@ export default function CotizacionesPage() {
                       <th className="px-2 py-2 text-left font-bold">Código</th>
                       <th className="px-2 py-2 text-left font-bold">Descripción</th>
                       <th className="px-2 py-2 text-left font-bold">Proveedor</th>
-                      <th className="px-2 py-2
+                      <th className="px-2 py-2 text-center font-bold">Costo x 1.11</th>
+                      <th className="px-2 py-2 text-center font-bold">Venta</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ordenados.otra.map((item, idx) => (
+                      <tr key={idx} className={esVentaMenor(item) ? 'bg-red-200' : ''}>
+                        <td className="px-2 py-1">{item.cantidad}</td>
+                        <td className="px-2 py-1 font-mono">{item.codigo}</td>
+                        <td className="px-2 py-1">{item.descripcion}</td>
+                        <td className="px-2 py-1 text-sm">
+                          {item.proveedor_otro_link ? (
+                            <a href={item.proveedor_otro_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                              {item.proveedor_otro_nombre} 🔗
+                            </a>
+                          ) : (
+                            item.proveedor_otro_nombre || '—'
+                          )}
+                        </td>
+                        <td className="px-2 py-1 text-center font-bold">${(item.otra * MULTIPLICADOR).toFixed(2)}</td>
+                        <td className="px-2 py-1 text-center font-bold text-green-700">${item.precio_venta.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {ordenados.pendientes.length > 0 && (
+              <div className="p-4 bg-yellow-50">
+                <p className="font-bold text-yellow-800">
+                  ⏳ Pendiente de cotización: {ordenados.pendientes.map(p => p.codigo).join(', ')}
+                </p>
+              </div>
+            )}
+            {ordenados.cancelados.length > 0 && (
+              <div className="p-4 bg-red-50">
+                <p className="font-bold text-red-800">
+                  🚫 Ítems cancelados: {ordenados.cancelados.map(p => p.codigo).join(', ')}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* TABLA DE EDICIÓN INDIVIDUAL */}
+          <div className="bg-white rounded-lg shadow overflow-x-auto mb-6">
+            <div className="p-4 border-b bg-gray-50">
+              <h2 className="text-lg font-bold">Editar Items (Todos los detalles)</h2>
+            </div>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-100 border-b">
+                  <th className="px-2 py-2 text-left font-bold">Cant</th>
+                  <th className="px-2 py-2 text-left font-bold">Código</th>
+                  <th className="px-2 py-2 text-left font-bold">Descripción</th>
+                  <th className="px-2 py-2 text-center font-bold">Peso</th>
+                  <th className="px-2 py-2 text-center font-bold">Basoli</th>
+                  <th className="px-2 py-2 text-center font-bold">Partzilla</th>
+                  <th className="px-2 py-2 text-center font-bold">Otra</th>
+                  <th className="px-2 py-2 text-center font-bold">Prov</th>
+                  <th className="px-2 py-2 text-center font-bold">Costo x 1.11</th>
+                  <th className="px-2 py-2 text-center font-bold">Venta</th>
+                  <th className="px-2 py-2 text-center font-bold">Estado</th> {/* Nueva columna */}
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, idx) => {
+                  const costoConRecargo = calcularCostoConRecargo(item)
+                  const esAlerta = esVentaMenor(item)
+                  const rowClass = esAlerta ? 'bg-red-200' : item.estado === 'cancelado' ? 'bg-gray-100 text-gray-500 line-through' : ''
+
+                  return (
+                    <tr key={idx} className={`border-b ${rowClass}`}>
+                      <td className="px-2 py-1">
+                        <input
+                          type="number"
+                          value={item.cantidad || ''}
+                          onChange={e => actualizarItem(idx, 'cantidad', parseFloat(e.target.value) || 0)}
+                          className="w-12 border rounded px-1 py-0.5 text-center text-sm"
+                          disabled={item.estado === 'cancelado'}
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <input
+                          type="text"
+                          value={item.codigo}
+                          onChange={e => actualizarItem(idx, 'codigo', e.target.value)}
+                          className="w-16 border rounded px-1 py-0.5 text-sm font-mono"
+                          disabled={item.estado === 'cancelado'}
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <input
+                          type="text"
+                          value={item.descripcion}
+                          onChange={e => actualizarItem(idx, 'descripcion', e.target.value)}
+                          onClick={() => setItemActivoIndex(idx)}
+                          className="w-32 border rounded px-1 py-0.5 text-sm cursor-pointer hover:bg-gray-100"
+                          placeholder="Click para detalles..."
+                          disabled={item.estado === 'cancelado'}
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={item.peso || ''}
+                          onChange={e => actualizarItem(idx, 'peso', parseFloat(e.target.value) || 0)}
+                          className="w-14 border rounded px-1 py-0.5 text-center text-sm"
+                          disabled={item.estado === 'cancelado'}
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={item.basoli || ''}
+                          onChange={e => actualizarItem(idx, 'basoli', parseFloat(e.target.value) || 0)}
+                          className="w-14 border rounded px-1 py-0.5 text-center text-sm bg-gray-50"
+                          disabled={item.estado === 'cancelado'}
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={item.partzilla || ''}
+                          onChange={e => actualizarItem(idx, 'partzilla', parseFloat(e.target.value) || 0)}
+                          className="w-14 border rounded px-1 py-0.5 text-center text-sm bg-gray-50"
+                          disabled={item.estado === 'cancelado'}
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={item.otra || ''}
+                          onChange={e => actualizarItem(idx, 'otra', parseFloat(e.target.value) || 0)}
+                          onClick={() => setItemActivoIndex(idx)}
+                          className="w-14 border rounded px-1 py-0.5 text-center text-sm bg-purple-50 cursor-pointer hover:bg-purple-100 font-semibold text-purple-800"
+                          disabled={item.estado === 'cancelado'}
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <select
+                          value={item.proveedor_elegido || ''}
+                          onChange={e => actualizarItem(idx, 'proveedor_elegido', e.target.value || null)}
+                          className="w-16 border rounded px-1 py-0.5 text-center text-sm bg-blue-50 font-bold"
+                          disabled={item.estado === 'cancelado'}
+                        >
+                          <option value="">—</option>
+                          <option value="basoli">Basoli</option>
+                          <option value="partzilla">Partzilla</option>
+                          <option value="otra">Otra</option>
+                        </select>
+                      </td>
+                      <td className="px-2 py-1 text-center text-sm font-bold">
+                        {costoConRecargo > 0 ? `$${costoConRecargo.toFixed(2)}` : '—'}
+                      </td>
+                      <td className="px-2 py-1">
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={item.precio_venta || ''}
+                          onChange={e => actualizarItem(idx, 'precio_venta', parseFloat(e.target.value) || 0)}
+                          className={`w-16 border rounded px-1 py-0.5 text-center text-sm font-bold ${
+                            esAlerta ? 'bg-red-600 text-white border-red-700' : 'bg-green-50 text-green-700'
+                          }`}
+                          disabled={item.estado === 'cancelado'}
+                        />
+                      </td>
+                      <td className="px-2 py-1">
+                        <select
+                          value={item.estado || 'activo'}
+                          onChange={e => actualizarItem(idx, 'estado', e.target.value)}
+                          className={`w-20 border rounded px-1 py-0.5 text-center text-sm ${item.estado === 'cancelado' ? 'bg-red-100 text-red-700' : 'bg-gray-50'}`}
+                        >
+                          <option value="activo">Activo</option>
+                          <option value="cancelado">Cancelado</option>
+                        </select>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* SECCIÓN FINAL DE COTIZACIÓN */}
+          <div className="bg-blue-50 p-6 rounded-lg shadow mb-6">
+            <h2 className="text-lg font-bold mb-3">💲 Resumen y Cierre</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold mb-1">Subtotal de Ítems</label>
+                <p className="w-full border rounded px-3 py-2 bg-gray-100 font-bold text-lg">
+                  {fmt(subtotalItems)}
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-bold mb-1">Precio Final (opcional)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={precioFinal}
+                  onChange={e => setPrecioFinal(parseFloat(e.target.value) || 0)}
+                  className="w-full border rounded px-3 py-2 font-bold text-lg"
+                />
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <label className="block text-sm font-bold mb-1">Mensaje WhatsApp (opcional)</label>
+              <textarea
+                value={mensajeWhatsapp}
+                onChange={e => setMensajeWhatsapp(e.target.value)}
+                className="w-full border rounded px-3 py-2 text-sm h-20"
+                placeholder="Hola [Cliente], aquí está tu cotización [Nro]..."
+              />
+            </div>
+          </div>
+
+          {/* Envío Programado */}
+          <div className="mt-4 p-4 bg-blue-50 rounded border border-blue-200">
+              <label className="flex items-center gap-2 mb-3">
+                <input
+                  type="checkbox"
+                  checked={enviarAutomatico}
+                  onChange={e => setEnviarAutomatico(e.target.checked)}
+                  className="w-4 h-4"
+                />
+                <span className="font-bold">📅 Programar envío automático de WhatsApp</span>
+              </label>
+
+              {enviarAutomatico && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold mb-1">Fecha de envío</label>
+                    <input
+                      type="date"
+                      value={fechaEnvioProgramado}
+                      onChange={e => setFechaEnvioProgramado(e.target.value)}
+                      className="w-full border rounded px-3 py-2"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold mb-1">Hora de envío</label>
+                    <input
+                      type="time"
+                      value={horaEnvioProgramado}
+                      onChange={e => setHoraEnvioProgramado(e.target.value)}
+                      className="w-full border rounded px-3 py-2"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+          {/* BOTONES DE ACCIÓN */}
+          <div className="flex gap-3 justify-end mb-6 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setVista('lista')}
+              className="px-6 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 font-semibold"
+            >
+              Cancelar
+            </button>
+
+            <button
+              type="button"
+              onClick={generarPDFCliente}
+              className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 font-semibold"
+            >
+              📄 PDF Cliente
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setMostrarModalProveedores(true)}
+              className="px-6 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 font-semibold"
+            >
+              📋 PDF Proveedores
+            </button>
+
+            <button
+              type="submit"
+              disabled={guardando || enviandoWhatsapp}
+              className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-semibold disabled:opacity-50"
+            >
+              {guardando ? 'Guardando...' : '✅ Guardar'}
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault()
+                guardarCotizacion(e, true)
+              }}
+              disabled={guardando || enviandoWhatsapp}
+              className="px-6 py-2 bg-emerald-600 text-white rounded hover:bg-emerald-700 font-semibold disabled:opacity-50"
+            >
+              {enviandoWhatsapp ? '📤 Enviando...' : '💬 Guardar y Enviar WA'}
+            </button>
+          </div>
+        </form>
+
+        {mostrarModalProveedores && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full">
+              <h2 className="text-lg font-bold mb-4">Generar PDF para Proveedores</h2>
+
+              <div className="space-y-3 mb-6">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={proveedoresSeleccionados.basoli}
+                    onChange={e => setProveedoresSeleccionados({ ...proveedoresSeleccionados, basoli: e.target.checked })}
+                    className="w-4 h-4"
+                    disabled={ordenados.basoli.length === 0}
+                  />
+                  <span className="font-semibold">BÁSOLI ({ordenados.basoli.length} items)</span>
+                </label>
+
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={proveedoresSeleccionados.partzilla}
+                    onChange={e => setProveedoresSeleccionados({ ...proveedoresSeleccionados, partzilla: e.target.checked })}
+                    className="w-4 h-4"
+                    disabled={ordenados.partzilla.length === 0}
+                  />
+                  <span className="font-semibold">PARTZILLA ({ordenados.partzilla.length} items)</span>
+                </label>
+
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={proveedoresSeleccionados.otra}
+                    onChange={e => setProveedoresSeleccionados({ ...proveedoresSeleccionados, otra: e.target.checked })}
+                    className="w-4 h-4"
+                    disabled={ordenados.otra.length === 0}
+                  />
+                  <span className="font-semibold">OTROS PROVEEDORES ({ordenados.otra.length} items)</span>
+                </label>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setMostrarModalProveedores(false)}
+                  className="flex-1 px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (proveedoresSeleccionados.basoli) generarPDFProveedor('basoli')
+                    if (proveedoresSeleccionados.partzilla) generarPDFProveedor('partzilla')
+                    if (proveedoresSeleccionados.otra) generarPDFProveedor('otra')
+                    setMostrarModalProveedores(false)
+                  }}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold"
+                >
+                  Descargar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {itemActivoIndex !== null && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end z-50">
+            <div className="bg-white w-full md:w-96 h-screen md:h-auto md:rounded-lg p-6 overflow-y-auto">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-bold">
+                  ⚙️ Detalles Línea #{itemActivoIndex + 1}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setItemActivoIndex(null)}
+                  className="text-gray-500 hover:text-gray-700 font-bold text-xl"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold mb-1">Código</label>
+                  <input
+                    type="text"
+                    value={items[itemActivoIndex]?.codigo || ''}
+                    onChange={e => actualizarItem(itemActivoIndex, 'codigo', e.target.value)}
+                    className="w-full border rounded px-3 py-2 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold mb-1">Descripción</label>
+                  <input
+                    type="text"
+                    value={items[itemActivoIndex]?.descripcion || ''}
+                    onChange={e => actualizarItem(itemActivoIndex, 'descripcion', e.target.value)}
+                    className="w-full border rounded px-3 py-2 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold mb-1">Peso (kg)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={items[itemActivoIndex]?.peso || ''}
+                    onChange={e => actualizarItem(itemActivoIndex, 'peso', parseFloat(e.target.value) || 0)}
+                    className="w-full border rounded px-3 py-2 text-sm"
+                  />
+                </div>
+
+                <div className="border-t pt-4">
+                  <h3 className="font-bold text-sm mb-3">Proveedor Externo</h3>
+
+                  <div className="mb-3">
+                    <label className="block text-xs font-bold mb-1">Nombre (Ej: CMSNL, Ebay)</label>
+                    <input
+                      type="text"
+                      value={items[itemActivoIndex]?.proveedor_otro_nombre || ''}
+                      onChange={e => actualizarItem(itemActivoIndex, 'proveedor_otro_nombre', e.target.value)}
+                      className="w-full border rounded px-3 py-1 text-xs uppercase"
+                      placeholder="Nombre del proveedor..."
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold mb-1">Link Web</label>
+                    <input
+                      type="text"
+                      value={items[itemActivoIndex]?.proveedor_otro_link || ''}
+                      onChange={e => actualizarItem(itemActivoIndex, 'proveedor_otro_link', e.target.value)}
+                      className="w-full border rounded px-3 py-1 text-xs font-mono text-blue-600"
+                      placeholder="https://..."
+                    />
+                  </div>
+
+                  {items[itemActivoIndex]?.proveedor_otro_link && (
+                    <a
+                      href={items[itemActivoIndex]?.proveedor_otro_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline text-xs mt-2 block font-semibold"
+                    >
+                      🌐 Abrir en la web
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setItemActivoIndex(null)}
+                className="w-full mt-6 px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 font-semibold"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+$$
