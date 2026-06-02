@@ -472,8 +472,8 @@ const generarPDFCliente = () => {
           <h1 style="color: #333;">Cotización ${nro}</h1>
           
           <div class="header-info">
-            <strong>Cliente:</strong> ${clienteSeleccionado?.nombre || 'No definido'}<br/>
-            <strong>Teléfono:</strong> ${clienteSeleccionado?.telefono || 'No disponible'}
+            <strong>Cliente:</strong> ${cliente?.nombre || 'No definido'}<br/>
+            <strong>Teléfono:</strong> ${cliente?.telefono || 'No disponible'}
           </div>
 
           <table>
