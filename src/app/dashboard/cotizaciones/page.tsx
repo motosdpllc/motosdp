@@ -329,16 +329,13 @@ export default function CotizacionesPage() {
       return
     }
 
-    if (enviarWhatsapp) {
-     const clienteSeleccionado = clientes.find(c => c.id === clienteId);
-if (!clienteSeleccionado?.telefono) {
-  toast.error('⚠️ El cliente no tiene teléfono');
-  return;
+if (enviarWhatsapp) {
+  const clienteSeleccionado = clientes.find(c => c.id === clienteId);
+  if (!clienteSeleccionado?.telefono) {
+    toast.error('⚠️ El cliente no tiene teléfono');
+    return;
+  }
 }
-        toast.error('⚠️ El cliente no tiene teléfono')
-        return
-      }
-    }
 
     try {
       setGuardando(true)
@@ -388,10 +385,10 @@ if (!clienteSeleccionado?.telefono) {
 
       if (enviarWhatsapp) {
         setEnviandoWhatsapp(true)
-        const clienteId = clientes.find(c => c.id === clienteId)
-        if (clienteId?.telefono) {
-          const mensaje = encodeURIComponent(mensajeWhatsapp || `Hola ${clienteNombre}, cotización ${nro}`)
-          window.open(`https://wa.me/${clienteId.telefono}?text=${mensaje}`, '_blank')
+       const clienteEncontrado = clientes.find(c => c.id === clienteId)
+if (clienteEncontrado?.telefono) {
+  const mensaje = encodeURIComponent(mensajeWhatsapp || `Hola ${clienteNombre}, cotización ${nro}`)
+  window.open(`https://wa.me/${clienteEncontrado.telefono}?text=${mensaje}`, '_blank')
         }
         const { data: cots } = await supabase
           .from('cotizaciones').select('*, cotizacion_items(*)').order('created_at', { ascending: false })
