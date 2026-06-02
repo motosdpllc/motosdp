@@ -330,8 +330,11 @@ export default function CotizacionesPage() {
     }
 
     if (enviarWhatsapp) {
-      const clienteId = clientes.find(c => c.id === clienteId)
-      if (!clienteId?.telefono) {
+     const clienteSeleccionado = clientes.find(c => c.id === clienteId);
+if (!clienteSeleccionado?.telefono) {
+  toast.error('⚠️ El cliente no tiene teléfono');
+  return;
+}
         toast.error('⚠️ El cliente no tiene teléfono')
         return
       }
