@@ -330,8 +330,8 @@ export default function CotizacionesPage() {
     }
 
     if (enviarWhatsapp) {
-      const clienteData = clientes.find(c => c.id === clienteId)
-      if (!clienteData?.telefono) {
+      const clienteId = clientes.find(c => c.id === clienteId)
+      if (!clienteId?.telefono) {
         toast.error('⚠️ El cliente no tiene teléfono')
         return
       }
@@ -385,10 +385,10 @@ export default function CotizacionesPage() {
 
       if (enviarWhatsapp) {
         setEnviandoWhatsapp(true)
-        const clienteData = clientes.find(c => c.id === clienteId)
-        if (clienteData?.telefono) {
+        const clienteId = clientes.find(c => c.id === clienteId)
+        if (clienteId?.telefono) {
           const mensaje = encodeURIComponent(mensajeWhatsapp || `Hola ${clienteNombre}, cotización ${nro}`)
-          window.open(`https://wa.me/${clienteData.telefono}?text=${mensaje}`, '_blank')
+          window.open(`https://wa.me/${clienteId.telefono}?text=${mensaje}`, '_blank')
         }
         const { data: cots } = await supabase
           .from('cotizaciones').select('*, cotizacion_items(*)').order('created_at', { ascending: false })
@@ -473,7 +473,7 @@ const generarPDFCliente = () => {
           
           <div class="header-info">
             <strong>Cliente:</strong> ${clienteNombre || 'No definido'}<br/>
-            <strong>Teléfono:</strong> ${clienteData?.telefono || 'No disponible'}
+            <strong>Teléfono:</strong> ${clienteId?.telefono || 'No disponible'}
           </div>
 
           <table>
