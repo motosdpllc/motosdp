@@ -1,3 +1,4 @@
+@@ -1,1438 +1,1437 @@
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -427,69 +428,50 @@ export default function CotizacionesPage() {
     }
   }
 
- printWindow.document.write(`
-        <html>
-          <head>
-            <meta charset="UTF-8" />
-            <title>Cotización ${nro} - ${clienteNombre}</title>
-            <style>
-              @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
-              body { font-family: 'Inter', sans-serif; padding: 40px; color: #1f2937; line-height: 1.5; background: #f9fafb; }
-              .header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 40px; border-bottom: 3px solid #2563eb; padding-bottom: 20px; }
-              .header h1 { margin: 0; color: #1e3a8a; font-size: 28px; letter-spacing: -0.5px; }
-              .info-box { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 30px; border-left: 5px solid #2563eb; }
-              table { width: 100%; border-collapse: separate; border-spacing: 0; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-              th { background-color: #f3f4f6; color: #374151; font-weight: 600; text-transform: uppercase; font-size: 11px; padding: 15px; border-bottom: 2px solid #e5e7eb; }
-              td { padding: 15px; border-bottom: 1px solid #f3f4f6; font-size: 14px; }
-              .total-row td { background-color: #eff6ff; font-weight: 700; color: #1e40af; }
-              .final-price-box { background: #1e3a8a; color: white; padding: 20px; border-radius: 12px; text-align: right; font-size: 24px; font-weight: 700; margin-top: 30px; box-shadow: 0 10px 15px -3px rgba(30, 58, 138, 0.3); }
-              .footer { margin-top: 50px; text-align: center; font-size: 10px; color: #9ca3af; }
-              a { color: #2563eb; text-decoration: none; font-size: 12px; font-weight: 600; }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <div>
-                <h1>COTIZACIÓN</h1>
-                <p style="font-size: 18px; color: #6b7280; margin: 0;">#${nro}</p>
-              </div>
-              <div style="text-align: right;">
-                <p><strong>Fecha:</strong> ${new Date(fecha).toLocaleDateString('es-AR')}</p>
-              </div>
-            </div>
+  const generarPDFCliente = () => {
+    const { basoli, partzilla, otra, pendientes, cancelados } = itemsOrdenados() // Incluimos cancelados
+    const todosActivos = [...basoli, ...partzilla, ...otra]
 
-            <div class="info-box">
-              <p style="margin: 0;"><strong>Cliente:</strong> ${clienteNombre}</p>
-              ${vin ? `<p style="margin: 5px 0 0 0;"><strong>VIN:</strong> ${vin}</p>` : ''}
-            </div>
+    let filas = '', totalVenta = 0
+    todosActivos.forEach(item => {
+      const totalItem = item.cantidad * item.precio_venta
+      totalVenta += totalItem
 
-            <table>
-              <thead>
-                <tr>
-                  <th style="text-align: center;">Cant</th>
-                  <th>Código</th>
-                  <th>Descripción</th>
-                  <th style="text-align: right;">Precio</th>
-                  <th style="text-align: right;">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${filas}
-                <tr class="total-row">
-                  <td colspan="4" style="text-align: right;">SUBTOTAL</td>
-                  <td style="text-align: right;">$${totalVenta.toFixed(2)}</td>
-                </tr>
-              </tbody>
-            </table>
+      const linkHTML = mostrarLinks && item.proveedor_otro_link ? `<br/><a href="${item.proveedor_otro_link}" style="color: #0066cc; font-size: 11px;">🔗 Ver producto</a>` : ''
+      const precioUnitarioHTML = mostrarPreciosIndividuales ? `$${item.precio_venta.toFixed(2)}` : 'Incluido'
+      const subtotalItemHTML = mostrarPreciosIndividuales ? `$${totalItem.toFixed(2)}` : 'Incluido'
 
-            ${precioFinal > 0 ? `<div class="final-price-box">TOTAL A PAGAR: $${precioFinal.toFixed(2)}</div>` : ''}
+      filas += `
+        <tr>
+          <td style="border: 1px solid #e0e0e0; padding: 10px; text-align: center;">${item.cantidad}</td>
+          <td style="border: 1px solid #e0e0e0; padding: 10px; font-family: 'Courier New', Courier, monospace;">${item.codigo}</td>
+          <td style="border: 1px solid #e0e0e0; padding: 10px;">
+            ${item.descripcion}
+            ${linkHTML}
+          </td>
+          <td style="border: 1px solid #e0e0e0; padding: 10px; text-align: right;">${precioUnitarioHTML}</td>
+          <td style="border: 1px solid #e0e0e0; padding: 10px; text-align: right;">${subtotalItemHTML}</td>
+        </tr>
+      `
+    })
 
-            <div class="footer">
-              <p>Documento generado el ${new Date().toLocaleDateString('es-AR')} - Sistema de Gestión</p>
-            </div>
-          </body>
-        </html>
-      `)
+    // Filas para ítems cancelados (opcional, se pueden mostrar abajo o no mostrar)
+    let filasCancelados = '';
+    if (cancelados.length > 0) {
+      filasCancelados += `
+        <tr><td colspan="5" style="border: 1px solid #e0e0e0; padding: 10px; background-color: #fcebeb; font-weight: bold; text-align: center;">Ítems Cancelados/No disponibles</td></tr>
+      `;
+      cancelados.forEach(item => {
+        filasCancelados += `
+          <tr>
+            <td style="border: 1px solid #e0e0e0; padding: 10px; text-align: center;">${item.cantidad}</td>
+            <td style="border: 1px solid #e0e0e0; padding: 10px; font-family: 'Courier New', Courier, monospace; text-decoration: line-through;">${item.codigo}</td>
+            <td style="border: 1px solid #e0e0e0; padding: 10px; text-decoration: line-through;">${item.descripcion}</td>
+            <td colspan="2" style="border: 1px solid #e0e0e0; padding: 10px; text-align: center; color: #cc0000;">CANCELADO</td>
+          </tr>
+        `;
+      });
+    }
 
 
     const encabezadoTabla = mostrarPreciosIndividuales
