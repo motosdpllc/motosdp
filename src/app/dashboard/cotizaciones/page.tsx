@@ -427,174 +427,60 @@ export default function CotizacionesPage() {
     }
   }
 
-  const generarPDFCliente = () => {
-    const { basoli, partzilla, otra, pendientes, cancelados } = itemsOrdenados() // Incluimos cancelados
-    const todosActivos = [...basoli, ...partzilla, ...otra]
+const generarPDFCliente = () => {
+    const { basoli, partzilla, otra, pendientes, cancelados } = itemsOrdenados();
+    const todosActivos = [...basoli, ...partzilla, ...otra];
 
     let filas = '';
-  todosActivos.forEach(item => {
-    const totalItem = item.cantidad * item.precio_venta;
-    filas += `
-      <tr>
-        <td style="border: 1px solid #ccc; padding: 8px;">${item.cantidad}</td>
-        <td style="border: 1px solid #ccc; padding: 8px;">${item.codigo}</td>
-        <td style="border: 1px solid #ccc; padding: 8px;">${item.descripcion}</td>
-        <td style="border: 1px solid #ccc; padding: 8px;">$${item.precio_venta.toFixed(2)}</td>
-        <td style="border: 1px solid #ccc; padding: 8px;">$${totalItem.toFixed(2)}</td>
-      </tr>
-    `;
-  });
-    
-    const printWindow = window.open('', '', 'height=800,width=1000');
-  printWindow.document.write(`
-    <html>
-      <body>
-        <h1>Cotización</h1>
-        <table style="width: 100%; border-collapse: collapse;">
-          <thead>
-            <tr>
-              <th>Cant</th><th>Código</th><th>Descripción</th><th>Precio</th><th>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${filas} </tbody>
-        </table>
-      </body>
-    </html>
-  `);
-  printWindow.document.close();
-  printWindow.print();
-};
-  
-  let filas = '', totalVenta = 0
-    todosActivos.forEach(item => {
-      const totalItem = item.cantidad * item.precio_venta
-      totalVenta += totalItem
+    let totalVenta = 0;
 
-      const linkHTML = mostrarLinks && item.proveedor_otro_link ? `<br/><a href="${item.proveedor_otro_link}" style="color: #0066cc; font-size: 11px;">🔗 Ver producto</a>` : ''
-      const precioUnitarioHTML = mostrarPreciosIndividuales ? `$${item.precio_venta.toFixed(2)}` : 'Incluido'
-      const subtotalItemHTML = mostrarPreciosIndividuales ? `$${totalItem.toFixed(2)}` : 'Incluido'
+    todosActivos.forEach(item => {
+      const totalItem = item.cantidad * item.precio_venta;
+      totalVenta += totalItem;
+      const linkHTML = mostrarLinks && item.proveedor_otro_link ? `<br/><a href="${item.proveedor_otro_link}" style="color: #0066cc; font-size: 11px;">🔗 Ver producto</a>` : '';
+      const precioUnitarioHTML = mostrarPreciosIndividuales ? `$${item.precio_venta.toFixed(2)}` : 'Incluido';
+      const subtotalItemHTML = mostrarPreciosIndividuales ? `$${totalItem.toFixed(2)}` : 'Incluido';
 
       filas += `
         <tr>
           <td style="border: 1px solid #e0e0e0; padding: 10px; text-align: center;">${item.cantidad}</td>
           <td style="border: 1px solid #e0e0e0; padding: 10px; font-family: 'Courier New', Courier, monospace;">${item.codigo}</td>
-          <td style="border: 1px solid #e0e0e0; padding: 10px;">
-            ${item.descripcion}
-            ${linkHTML}
-          </td>
+          <td style="border: 1px solid #e0e0e0; padding: 10px;">${item.descripcion}${linkHTML}</td>
           <td style="border: 1px solid #e0e0e0; padding: 10px; text-align: right;">${precioUnitarioHTML}</td>
           <td style="border: 1px solid #e0e0e0; padding: 10px; text-align: right;">${subtotalItemHTML}</td>
         </tr>
-      `
-    })
+      `;
+    });
 
-    // Filas para ítems cancelados (opcional, se pueden mostrar abajo o no mostrar)
     let filasCancelados = '';
     if (cancelados.length > 0) {
-      filasCancelados += `
-        <tr><td colspan="5" style="border: 1px solid #e0e0e0; padding: 10px; background-color: #fcebeb; font-weight: bold; text-align: center;">Ítems Cancelados/No disponibles</td></tr>
-      `;
+      filasCancelados = `<tr><td colspan="5" style="border: 1px solid #e0e0e0; padding: 10px; background-color: #fcebeb; font-weight: bold; text-align: center;">Ítems Cancelados</td></tr>`;
       cancelados.forEach(item => {
-        filasCancelados += `
-          <tr>
-            <td style="border: 1px solid #e0e0e0; padding: 10px; text-align: center;">${item.cantidad}</td>
-            <td style="border: 1px solid #e0e0e0; padding: 10px; font-family: 'Courier New', Courier, monospace; text-decoration: line-through;">${item.codigo}</td>
-            <td style="border: 1px solid #e0e0e0; padding: 10px; text-decoration: line-through;">${item.descripcion}</td>
-            <td colspan="2" style="border: 1px solid #e0e0e0; padding: 10px; text-align: center; color: #cc0000;">CANCELADO</td>
-          </tr>
-        `;
+        filasCancelados += `<tr><td style="border: 1px solid #e0e0e0; padding: 10px; text-align: center;">${item.cantidad}</td><td style="border: 1px solid #e0e0e0; padding: 10px; font-family: 'Courier New', Courier, monospace; text-decoration: line-through;">${item.codigo}</td><td style="border: 1px solid #e0e0e0; padding: 10px; text-decoration: line-through;">${item.descripcion}</td><td colspan="2" style="border: 1px solid #e0e0e0; padding: 10px; text-align: center; color: #cc0000;">CANCELADO</td></tr>`;
       });
     }
 
-
-    const encabezadoTabla = mostrarPreciosIndividuales
-      ? '<th>Precio Unit.</th><th>Subtotal</th>'
-      : '<th colspan="2">Valor</th>'
-
-    const LOGO_URL = 'https://your-logo-url.com/logo.png'; // Reemplaza con la URL de tu logo
-
-    const printWindow = window.open('', '', 'height=800,width=1000')
+    const encabezadoTabla = mostrarPreciosIndividuales ? '<th>Precio Unit.</th><th>Subtotal</th>' : '<th colspan="2">Valor</th>';
+    const printWindow = window.open('', '', 'height=800,width=1000');
+    
     if (printWindow) {
       printWindow.document.write(`
         <html>
-          <head>
-            <meta charset="UTF-8" />
-            <title>Cotización ${nro} - ${clienteNombre}</title>
-            <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
-            <style>
-              body { font-family: 'Roboto', sans-serif; padding: 30px; color: #333; line-height: 1.6; }
-              .header { text-align: center; margin-bottom: 30px; padding-bottom: 15px; border-bottom: 2px solid #0066cc; }
-              .header img { max-height: 80px; margin-bottom: 10px; }
-              .header h1 { margin: 0; color: #0066cc; font-size: 32px; font-weight: 700; }
-              .header p { margin: 5px 0; font-size: 14px; color: #555; }
-              .info-box { background-color: #f0f8ff; border: 1px solid #b0e0e6; padding: 15px; border-radius: 8px; margin-bottom: 25px; }
-              .info-box p { margin: 5px 0; }
-              table { width: 100%; border-collapse: collapse; margin-top: 25px; border: 1px solid #e0e0e0; }
-              th, td { border: 1px solid #e0e0e0; padding: 12px; text-align: left; }
-              th { background-color: #e6f7ff; color: #0066cc; font-weight: 700; text-transform: uppercase; font-size: 13px; }
-              .total-row td { background-color: #f0f0f0; font-weight: bold; font-size: 15px; }
-              .final-price-box { background-color: #0066cc; color: white; font-size: 24px; font-weight: 700; padding: 20px; text-align: right; margin-top: 30px; border-radius: 8px; }
-              .pendientes { margin-top: 25px; padding: 15px; background-color: #fff8e1; border-left: 5px solid #ffc107; color: #8d6e63; }
-              .pendientes p { margin: 0; font-size: 13px; }
-              .footer { margin-top: 40px; padding-top: 15px; border-top: 1px solid #e0e0e0; font-size: 11px; color: #999; text-align: center; }
-              @media print { body { margin: 0; padding: 0; } }
-            </style>
-          </head>
           <body>
-            <div class="header">
-              ${LOGO_URL !== 'https://your-logo-url.com/logo.png' ? `<img src="${LOGO_URL}" alt="Logo de la empresa" />` : ''}
-              <h1>COTIZACIÓN ${nro}</h1>
-              <p>Fecha: ${new Date(fecha).toLocaleDateString('es-AR')}</p>
-            </div>
-
-            <div class="info-box">
-              <p><strong>Cliente:</strong> ${clienteNombre}</p>
-              ${vin ? `<p><strong>VIN:</strong> ${vin}</p>` : ''}
-            </div>
-
-            <table>
-              <thead>
-                <tr>
-                  <th style="width: 50px; text-align: center;">Cant</th>
-                  <th style="width: 100px;">Código</th>
-                  <th>Descripción</th>
-                  ${encabezadoTabla}
-                </tr>
-              </thead>
-              <tbody>
-                ${filas}
-                <tr class="total-row">
-                  <td colspan="3" style="text-align: right;">SUBTOTAL DE ÍTEMS:</td>
-                  <td colspan="2" style="text-align: right;">$${totalVenta.toFixed(2)}</td>
-                </tr>
-                ${filasCancelados}
-              </tbody>
+            <h1>Cotización ${nro}</h1>
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead><tr><th>Cant</th><th>Código</th><th>Descripción</th>${encabezadoTabla}</tr></thead>
+              <tbody>${filas}${filasCancelados}</tbody>
             </table>
-
-            ${pendientes.length > 0 ? `
-              <div class="pendientes">
-                <p><strong>⏳ Pendiente de cotizar:</strong> ${pendientes.map(p => p.codigo).join(', ')}</p>
-              </div>
-            ` : ''}
-
-            ${precioFinal > 0 ? `
-              <div class="final-price-box">
-                PRECIO FINAL: $${precioFinal.toFixed(2)}
-              </div>
-            ` : ''}
-
-            <div class="footer">
-              <p>Cotización generada el ${new Date().toLocaleDateString('es-AR')} a las ${new Date().toLocaleTimeString('es-AR')}</p>
-            </div>
+            <div style="text-align: right; margin-top: 20px;"><strong>TOTAL: $${totalVenta.toFixed(2)}</strong></div>
           </body>
         </html>
-      `)
-      printWindow.document.close()
-      setTimeout(() => printWindow.print(), 250)
+      `);
+      printWindow.document.close();
+      printWindow.print();
     }
-  }
-
+  };
+  
   const generarPDFProveedor = (proveedor: 'basoli' | 'partzilla' | 'otra') => {
     const { basoli, partzilla, otra } = itemsOrdenados() // Llamar aquí
     const items = proveedor === 'basoli' ? basoli : proveedor === 'partzilla' ? partzilla : otra
