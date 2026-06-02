@@ -432,7 +432,42 @@ export default function CotizacionesPage() {
     const { basoli, partzilla, otra, pendientes, cancelados } = itemsOrdenados() // Incluimos cancelados
     const todosActivos = [...basoli, ...partzilla, ...otra]
 
-    let filas = '', totalVenta = 0
+    let filas = '';
+  todosActivos.forEach(item => {
+    const totalItem = item.cantidad * item.precio_venta;
+    filas += `
+      <tr>
+        <td style="border: 1px solid #ccc; padding: 8px;">${item.cantidad}</td>
+        <td style="border: 1px solid #ccc; padding: 8px;">${item.codigo}</td>
+        <td style="border: 1px solid #ccc; padding: 8px;">${item.descripcion}</td>
+        <td style="border: 1px solid #ccc; padding: 8px;">$${item.precio_venta.toFixed(2)}</td>
+        <td style="border: 1px solid #ccc; padding: 8px;">$${totalItem.toFixed(2)}</td>
+      </tr>
+    `;
+  });
+    
+    const printWindow = window.open('', '', 'height=800,width=1000');
+  printWindow.document.write(`
+    <html>
+      <body>
+        <h1>Cotización</h1>
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr>
+              <th>Cant</th><th>Código</th><th>Descripción</th><th>Precio</th><th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filas} </tbody>
+        </table>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.print();
+};
+  
+  let filas = '', totalVenta = 0
     todosActivos.forEach(item => {
       const totalItem = item.cantidad * item.precio_venta
       totalVenta += totalItem
