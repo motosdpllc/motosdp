@@ -473,7 +473,7 @@ const generarPDFCliente = () => {
           
           <div class="header-info">
             <strong>Cliente:</strong> ${clienteNombre || 'No definido'}<br/>
-            <strong>Teléfono:</strong> ${clienteId?.telefono || 'No disponible'}
+<strong>Teléfono:</strong> ${clientes.find(c => c.id === clienteId)?.telefono || 'No disponible'}
           </div>
 
           <table>
