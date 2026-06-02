@@ -437,6 +437,7 @@ const generarPDFCliente = () => {
   todosActivos.forEach(item => {
     const totalItem = item.cantidad * item.precio_venta;
     totalVenta += totalItem;
+    
     const linkHTML = mostrarLinks && item.proveedor_otro_link ? `<br/><a href="${item.proveedor_otro_link}" style="color: #0066cc; font-size: 11px;">🔗 Ver producto</a>` : '';
     const precioUnitarioHTML = mostrarPreciosIndividuales ? `$${item.precio_venta.toFixed(2)}` : 'Incluido';
     const subtotalItemHTML = mostrarPreciosIndividuales ? `$${totalItem.toFixed(2)}` : 'Incluido';
@@ -458,22 +459,21 @@ const generarPDFCliente = () => {
       <html>
         <head>
           <style>
-            /* Esto oculta el encabezado y pie de página que pone el navegador automáticamente */
             @page { margin: 20mm; }
             body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
+            .header-info { margin-bottom: 20px; line-height: 1.6; }
             table { width: 100%; border-collapse: collapse; margin-top: 20px; }
             th { background-color: #f4f4f4; padding: 12px; text-align: left; border-bottom: 2px solid #ddd; }
-            .header-info { margin-bottom: 20px; line-height: 1.6; }
             .total { text-align: right; font-size: 18px; margin-top: 20px; font-weight: bold; }
             .footer-legal { margin-top: 40px; font-size: 12px; color: #777; border-top: 1px solid #eee; padding-top: 10px; }
           </style>
         </head>
         <body>
-          <h1 style="color: #333;">Cotización ${nro}</h1>
+          <h1 style="color: #333;">Cotización #${nro}</h1>
           
           <div class="header-info">
-   <strong>Cliente:</strong> ${cotizacion?.cliente_nombre || 'No definido'}<br/>
-  <strong>Teléfono:</strong> No disponible
+            <strong>Cliente:</strong> ${clienteNombre || 'No definido'}<br/>
+            <strong>Teléfono:</strong> ${clienteData?.telefono || 'No disponible'}
           </div>
 
           <table>
@@ -493,7 +493,6 @@ const generarPDFCliente = () => {
     `);
     
     printWindow.document.close();
-    // Un pequeño retraso para asegurar que los estilos se apliquen antes de imprimir
     setTimeout(() => {
         printWindow.print();
     }, 500);
