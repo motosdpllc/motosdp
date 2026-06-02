@@ -428,60 +428,77 @@ export default function CotizacionesPage() {
   }
 
 const generarPDFCliente = () => {
-    const { basoli, partzilla, otra, pendientes, cancelados } = itemsOrdenados();
-    const todosActivos = [...basoli, ...partzilla, ...otra];
+  const { basoli, partzilla, otra, pendientes, cancelados } = itemsOrdenados();
+  const todosActivos = [...basoli, ...partzilla, ...otra];
 
-    let filas = '';
-    let totalVenta = 0;
+  let filas = '';
+  let totalVenta = 0;
 
-    todosActivos.forEach(item => {
-      const totalItem = item.cantidad * item.precio_venta;
-      totalVenta += totalItem;
-      // Recuperamos la lógica de links y precios
-      const linkHTML = mostrarLinks && item.proveedor_otro_link ? `<br/><a href="${item.proveedor_otro_link}" style="color: #0066cc; font-size: 11px;">🔗 Ver producto</a>` : '';
-      const precioUnitarioHTML = mostrarPreciosIndividuales ? `$${item.precio_venta.toFixed(2)}` : 'Incluido';
-      const subtotalItemHTML = mostrarPreciosIndividuales ? `$${totalItem.toFixed(2)}` : 'Incluido';
+  todosActivos.forEach(item => {
+    const totalItem = item.cantidad * item.precio_venta;
+    totalVenta += totalItem;
+    const linkHTML = mostrarLinks && item.proveedor_otro_link ? `<br/><a href="${item.proveedor_otro_link}" style="color: #0066cc; font-size: 11px;">🔗 Ver producto</a>` : '';
+    const precioUnitarioHTML = mostrarPreciosIndividuales ? `$${item.precio_venta.toFixed(2)}` : 'Incluido';
+    const subtotalItemHTML = mostrarPreciosIndividuales ? `$${totalItem.toFixed(2)}` : 'Incluido';
 
-      filas += `
-        <tr style="border-bottom: 1px solid #eee;">
-          <td style="padding: 10px; text-align: center;">${item.cantidad}</td>
-          <td style="padding: 10px; font-family: monospace;">${item.codigo}</td>
-          <td style="padding: 10px;">${item.descripcion}${linkHTML}</td>
-          <td style="padding: 10px; text-align: right;">${precioUnitarioHTML}</td>
-          <td style="padding: 10px; text-align: right;">${subtotalItemHTML}</td>
-        </tr>
-      `;
-    });
+    filas += `
+      <tr style="border-bottom: 1px solid #eee;">
+        <td style="padding: 10px; text-align: center;">${item.cantidad}</td>
+        <td style="padding: 10px; font-family: monospace;">${item.codigo}</td>
+        <td style="padding: 10px;">${item.descripcion}${linkHTML}</td>
+        <td style="padding: 10px; text-align: right;">${precioUnitarioHTML}</td>
+        <td style="padding: 10px; text-align: right;">${subtotalItemHTML}</td>
+      </tr>
+    `;
+  });
 
-    const printWindow = window.open('', '', 'height=800,width=1000');
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <style>
-              body { font-family: Arial, sans-serif; padding: 40px; }
-              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-              th { background-color: #f4f4f4; padding: 12px; text-align: left; border-bottom: 2px solid #ddd; }
-              .total { text-align: right; font-size: 18px; margin-top: 20px; font-weight: bold; }
-            </style>
-          </head>
-          <body>
-            <h1 style="color: #333;">Cotización ${nro}</h1>
-            <p>Fecha: ${new Date().toLocaleDateString()}</p>
-            <table>
-              <thead>
-                <tr><th>Cant</th><th>Código</th><th>Descripción</th><th>Precio</th><th>Total</th></tr>
-              </thead>
-              <tbody>${filas}</tbody>
-            </table>
-            <div class="total">TOTAL: $${totalVenta.toFixed(2)}</div>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-      printWindow.print();
-    }
-  };
+  const printWindow = window.open('', '', 'height=800,width=1000');
+  if (printWindow) {
+    printWindow.document.write(`
+      <html>
+        <head>
+          <style>
+            /* Esto oculta el encabezado y pie de página que pone el navegador automáticamente */
+            @page { margin: 20mm; }
+            body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { background-color: #f4f4f4; padding: 12px; text-align: left; border-bottom: 2px solid #ddd; }
+            .header-info { margin-bottom: 20px; line-height: 1.6; }
+            .total { text-align: right; font-size: 18px; margin-top: 20px; font-weight: bold; }
+            .footer-legal { margin-top: 40px; font-size: 12px; color: #777; border-top: 1px solid #eee; padding-top: 10px; }
+          </style>
+        </head>
+        <body>
+          <h1 style="color: #333;">Cotización ${nro}</h1>
+          
+          <div class="header-info">
+            <strong>Cliente:</strong> ${clienteSeleccionado?.nombre || 'No definido'}<br/>
+            <strong>Teléfono:</strong> ${clienteSeleccionado?.telefono || 'No disponible'}
+          </div>
+
+          <table>
+            <thead>
+              <tr><th>Cant</th><th>Código</th><th>Descripción</th><th>Precio</th><th>Total</th></tr>
+            </thead>
+            <tbody>${filas}</tbody>
+          </table>
+
+          <div class="total">TOTAL: $${totalVenta.toFixed(2)}</div>
+          
+          <div class="footer-legal">
+            <p>Cotización válida por 15 días.</p>
+          </div>
+        </body>
+      </html>
+    `);
+    
+    printWindow.document.close();
+    // Un pequeño retraso para asegurar que los estilos se apliquen antes de imprimir
+    setTimeout(() => {
+        printWindow.print();
+    }, 500);
+  }
+};
   
   const generarPDFProveedor = (proveedor: 'basoli' | 'partzilla' | 'otra') => {
     const { basoli, partzilla, otra } = itemsOrdenados() // Llamar aquí
@@ -520,7 +537,8 @@ const generarPDFCliente = () => {
             <title>Pedido ${nombreProveedor} - ${nro}</title>
             <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
             <style>
-              body { font-family: 'Roboto', sans-serif; padding: 30px; color: #333; line-height: 1.6; }
+              body { font-family: Arial, sans-serif; padding: 20px; color: #333; line-height: 1.6; }
+              .logo { width: 150px; margin-bottom: 10px; }
               .header { text-align: center; margin-bottom: 30px; padding-bottom: 15px; border-bottom: 2px solid #ff6b00; }
               .header img { max-height: 80px; margin-bottom: 10px; }
               .header h1 { margin: 0; color: #ff6b00; font-size: 32px; font-weight: 700; }
@@ -537,7 +555,7 @@ const generarPDFCliente = () => {
           </head>
           <body>
             <div class="header">
-              ${LOGO_URL !== 'https://your-logo-url.com/logo.png' ? `<img src="${LOGO_URL}" alt="Logo de la empresa" />` : ''}
+              ${LOGO_URL !== 'https://raw.githubusercontent.com/motosdpllc/motosdp/refs/heads/main/src/app/favicon.ico' ? `<img src="${LOGO_URL}" alt="Logo de la empresa" />` : ''}
               <h1>PEDIDO A ${nombreProveedor}</h1>
               <p>Cotización: ${nro} | Cliente: ${clienteNombre}</p>
               <p>Fecha: ${new Date(fecha).toLocaleDateString('es-AR')}</p>
