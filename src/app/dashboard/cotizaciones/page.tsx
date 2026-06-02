@@ -554,7 +554,7 @@ const generarPDFCliente = () => {
           </head>
           <body>
             <div class="header">
-              ${LOGO_URL !== 'https://raw.githubusercontent.com/motosdpllc/motosdp/refs/heads/main/src/app/favicon.ico' ? `<img src="${LOGO_URL}" alt="Logo de la empresa" />` : ''}
+            ${(LOGO_URL as string) !== 'https://raw.githubusercontent.com/motosdpllc/motosdp/refs/heads/main/src/app/favicon.ico' ? `<img src="${LOGO_URL}" alt="Logo de la empresa" />` : ''}
               <h1>PEDIDO A ${nombreProveedor}</h1>
               <p>Cotización: ${nro} | Cliente: ${clienteNombre}</p>
               <p>Fecha: ${new Date(fecha).toLocaleDateString('es-AR')}</p>
