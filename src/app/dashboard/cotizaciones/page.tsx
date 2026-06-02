@@ -437,42 +437,44 @@ const generarPDFCliente = () => {
     todosActivos.forEach(item => {
       const totalItem = item.cantidad * item.precio_venta;
       totalVenta += totalItem;
+      // Recuperamos la lógica de links y precios
       const linkHTML = mostrarLinks && item.proveedor_otro_link ? `<br/><a href="${item.proveedor_otro_link}" style="color: #0066cc; font-size: 11px;">🔗 Ver producto</a>` : '';
       const precioUnitarioHTML = mostrarPreciosIndividuales ? `$${item.precio_venta.toFixed(2)}` : 'Incluido';
       const subtotalItemHTML = mostrarPreciosIndividuales ? `$${totalItem.toFixed(2)}` : 'Incluido';
 
       filas += `
-        <tr>
-          <td style="border: 1px solid #e0e0e0; padding: 10px; text-align: center;">${item.cantidad}</td>
-          <td style="border: 1px solid #e0e0e0; padding: 10px; font-family: 'Courier New', Courier, monospace;">${item.codigo}</td>
-          <td style="border: 1px solid #e0e0e0; padding: 10px;">${item.descripcion}${linkHTML}</td>
-          <td style="border: 1px solid #e0e0e0; padding: 10px; text-align: right;">${precioUnitarioHTML}</td>
-          <td style="border: 1px solid #e0e0e0; padding: 10px; text-align: right;">${subtotalItemHTML}</td>
+        <tr style="border-bottom: 1px solid #eee;">
+          <td style="padding: 10px; text-align: center;">${item.cantidad}</td>
+          <td style="padding: 10px; font-family: monospace;">${item.codigo}</td>
+          <td style="padding: 10px;">${item.descripcion}${linkHTML}</td>
+          <td style="padding: 10px; text-align: right;">${precioUnitarioHTML}</td>
+          <td style="padding: 10px; text-align: right;">${subtotalItemHTML}</td>
         </tr>
       `;
     });
 
-    let filasCancelados = '';
-    if (cancelados.length > 0) {
-      filasCancelados = `<tr><td colspan="5" style="border: 1px solid #e0e0e0; padding: 10px; background-color: #fcebeb; font-weight: bold; text-align: center;">Ítems Cancelados</td></tr>`;
-      cancelados.forEach(item => {
-        filasCancelados += `<tr><td style="border: 1px solid #e0e0e0; padding: 10px; text-align: center;">${item.cantidad}</td><td style="border: 1px solid #e0e0e0; padding: 10px; font-family: 'Courier New', Courier, monospace; text-decoration: line-through;">${item.codigo}</td><td style="border: 1px solid #e0e0e0; padding: 10px; text-decoration: line-through;">${item.descripcion}</td><td colspan="2" style="border: 1px solid #e0e0e0; padding: 10px; text-align: center; color: #cc0000;">CANCELADO</td></tr>`;
-      });
-    }
-
-    const encabezadoTabla = mostrarPreciosIndividuales ? '<th>Precio Unit.</th><th>Subtotal</th>' : '<th colspan="2">Valor</th>';
     const printWindow = window.open('', '', 'height=800,width=1000');
-    
     if (printWindow) {
       printWindow.document.write(`
         <html>
+          <head>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 40px; }
+              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+              th { background-color: #f4f4f4; padding: 12px; text-align: left; border-bottom: 2px solid #ddd; }
+              .total { text-align: right; font-size: 18px; margin-top: 20px; font-weight: bold; }
+            </style>
+          </head>
           <body>
-            <h1>Cotización ${nro}</h1>
-            <table style="width: 100%; border-collapse: collapse;">
-              <thead><tr><th>Cant</th><th>Código</th><th>Descripción</th>${encabezadoTabla}</tr></thead>
-              <tbody>${filas}${filasCancelados}</tbody>
+            <h1 style="color: #333;">Cotización ${nro}</h1>
+            <p>Fecha: ${new Date().toLocaleDateString()}</p>
+            <table>
+              <thead>
+                <tr><th>Cant</th><th>Código</th><th>Descripción</th><th>Precio</th><th>Total</th></tr>
+              </thead>
+              <tbody>${filas}</tbody>
             </table>
-            <div style="text-align: right; margin-top: 20px;"><strong>TOTAL: $${totalVenta.toFixed(2)}</strong></div>
+            <div class="total">TOTAL: $${totalVenta.toFixed(2)}</div>
           </body>
         </html>
       `);
