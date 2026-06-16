@@ -214,7 +214,25 @@ export default function CotizacionesPage() {
   }
 
   const actualizarItem = (index: number, campo: keyof CotizacionItem, valor: any) => {
-  const nuevoItems = [...items]
+  const buscarPesoPorCodigo = async (codigo: string, index: number) => {
+  const { data } = await supabase
+    .from('catalogo_pesos')
+    .select('peso')
+    .eq('codigo', codigo)
+    .maybeSingle()
+
+  if (data?.peso) {
+    setItems(prev => {
+      const copia = [...prev]
+      copia[index] = {
+        ...copia[index],
+        peso: Number(data.peso)
+      }
+      return copia
+    })
+  }
+}
+    const nuevoItems = [...items]
 
   if (['peso', 'basoli', 'partzilla', 'otra', 'precio_venta', 'cantidad'].includes(campo)) {
     nuevoItems[index] = { ...nuevoItems[index], [campo]: parseFloat(valor) || 0 }
