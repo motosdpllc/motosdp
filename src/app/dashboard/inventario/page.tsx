@@ -153,6 +153,7 @@ function InventarioTable() {
             <thead>
               <tr className="bg-gray-100 border-b">
                 <th className="px-3 py-2 text-left font-bold">Código</th>
+                <th className="px-3 py-2 text-center font-bold">Editar</th>
                 <th className="px-3 py-2 text-left font-bold">Producto</th>
                 <th className="px-3 py-2 text-left font-bold">OEM</th>
                 <th className="px-3 py-2 text-left font-bold">Orden</th>
@@ -184,6 +185,15 @@ function InventarioTable() {
                 return (
                   <tr key={x.id} className="border-b hover:bg-gray-50">
                     <td className="px-3 py-2 font-mono font-bold text-blue-600">{x.codigo || '—'}</td>
+<td className="px-3 py-2 text-center">
+  <a
+    href={`/dashboard/nuevo?edit=${x.id}`}
+    className="text-blue-600 font-bold"
+    title="Editar"
+  >
+    ✏️
+  </a>
+</td>
                     <td className="px-3 py-2">{x.producto}</td>
                     <td className="px-3 py-2 text-xs">{x.oem || '—'}</td>
                     <td className="px-3 py-2 text-xs">{x.nro_orden || '—'}</td>
@@ -215,7 +225,7 @@ function InventarioTable() {
                     <td className="px-3 py-2 text-center font-bold">
                       {x.pendiente_compra ? '⏳' : '—'}
                     </td>
-                    <td className="px-3 py-2 text-center space-x-1">
+                    <td className="px-3 py-2 text-center whitespace-nowrap">
                       {!isEntregado && x.destino === 'Vendido' && ( // Solo si es una venta y no está entregado
                         <button
                           type="button"
@@ -226,9 +236,13 @@ function InventarioTable() {
                           <CheckCircle size={16} />
                         </button>
                       )}
-                      <a href={`/dashboard/nuevo?edit=${x.id}`} className="text-blue-500 hover:text-blue-700 text-xs">
-                        ✏️
-                      </a>
+                      <a
+  href={`/dashboard/nuevo?edit=${x.id}`}
+  className="inline-block px-2 text-blue-600 font-bold"
+  title="Editar"
+>
+  ✏️
+</a>
                       <button
                         type="button"
                         onClick={() => eliminarProducto(x.id)}
