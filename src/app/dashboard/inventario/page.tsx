@@ -174,7 +174,7 @@ function InventarioTable() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={17} className="px-6 py-4 text-center text-gray-500">Cargando...</td></tr>
+                <tr><td colSpan={18} className="px-6 py-4 text-center text-gray-500">Cargando...</td></tr>
               ) : items.length === 0 ? (
                 <tr><td colSpan={17} className="px-6 py-4 text-center text-gray-500">No hay ítems que coincidan</td></tr>
               ) : items.map((x: any) => {
