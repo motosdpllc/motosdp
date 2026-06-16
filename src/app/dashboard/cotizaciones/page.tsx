@@ -387,7 +387,7 @@ if (enviarWhatsapp) {
         setEnviandoWhatsapp(true)
        const clienteEncontrado = clientes.find(c => c.id === clienteId)
 if (clienteEncontrado?.telefono) {
-  const mensaje = encodeURIComponent(mensajeWhatsapp || `Hola ${cot.cliente_Nombre}, te envío la cotización ${cot.nro}`)
+  const mensaje = encodeURIComponent(mensajeWhatsapp || `Hola ${clienteNombre}, te envío la cotización ${nro}`)
   window.open(`https://wa.me/${clienteEncontrado.telefono}?text=${mensaje}`, '_blank')
         }
         const { data: cots } = await supabase
