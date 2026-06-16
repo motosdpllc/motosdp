@@ -214,14 +214,20 @@ export default function CotizacionesPage() {
   }
 
   const actualizarItem = (index: number, campo: keyof CotizacionItem, valor: any) => {
-    const nuevoItems = [...items]
-    if (['peso', 'basoli', 'partzilla', 'otra', 'precio_venta', 'cantidad'].includes(campo)) {
-      nuevoItems[index] = { ...nuevoItems[index], [campo]: parseFloat(valor) || 0 }
-    } else {
-      nuevoItems[index] = { ...nuevoItems[index], [campo]: valor }
-    }
-    setItems(nuevoItems)
+  const nuevoItems = [...items]
+
+  if (['peso', 'basoli', 'partzilla', 'otra', 'precio_venta', 'cantidad'].includes(campo)) {
+    nuevoItems[index] = { ...nuevoItems[index], [campo]: parseFloat(valor) || 0 }
+  } else {
+    nuevoItems[index] = { ...nuevoItems[index], [campo]: valor }
   }
+
+  if (campo === 'codigo' && valor.trim()) {
+    buscarPesoPorCodigo(valor.trim(), index)
+  }
+
+  setItems(nuevoItems)
+}
 
   const calcularCostoConRecargo = (item: CotizacionItem): number => {
     let costo = 0
