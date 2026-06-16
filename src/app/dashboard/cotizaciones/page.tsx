@@ -664,18 +664,26 @@ const generarPDFCliente = () => {
                           )}
                         </td>
                         <td className="px-6 py-3 text-right space-x-2">
-                          <button
-                            onClick={() => editarCotizacion(cot)}
-                            className="text-blue-600 hover:text-blue-800 font-semibold text-sm"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            onClick={() => abrirWhatsapp(cot)}
-                            className="text-green-600 hover:text-green-800 font-semibold text-sm"
-                          >
-                            💬 WA
-                          </button>
+                         <button
+  onClick={() => editarCotizacion(cot)}
+  className="text-blue-600 hover:text-blue-800 font-semibold text-sm"
+>
+  Editar
+</button>
+
+<button
+  onClick={() => editarCotizacion(cot)}
+  className="text-purple-600 hover:text-purple-800 font-semibold text-sm"
+>
+  📄 PDF
+</button>
+
+<button
+  onClick={() => abrirWhatsapp(cot)}
+  className="text-green-600 hover:text-green-800 font-semibold text-sm"
+>
+  💬 WA
+</button>
                           <button
                             onClick={() => eliminarCotizacion(cot.id)}
                             className="text-red-600 hover:text-red-800 font-semibold text-sm"
