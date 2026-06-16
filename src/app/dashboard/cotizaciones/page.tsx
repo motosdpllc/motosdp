@@ -598,7 +598,7 @@ const generarPDFCliente = () => {
     }
 
     const mensaje = encodeURIComponent(
-      cot.mensaje_whatsapp || `Hola ${clienteNombre}, te envío la cotización ${nro}`
+      cot.mensaje_whatsapp || `Hola ${cot.cliente_Nombre}, te envío la cotización ${cot.nro}`
     )
     window.open(`https://wa.me/${cliente.telefono}?text=${mensaje}`, '_blank')
   }
