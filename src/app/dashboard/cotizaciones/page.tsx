@@ -255,7 +255,6 @@ const guardarPesoCatalogo = async (item: CotizacionItem) => {
 
   toast.success('Peso guardado en catálogo')
 }
-}
     const nuevoItems = [...items]
 
   if (['peso', 'basoli', 'partzilla', 'otra', 'precio_venta', 'cantidad'].includes(campo)) {
