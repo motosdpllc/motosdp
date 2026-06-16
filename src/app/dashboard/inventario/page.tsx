@@ -226,31 +226,25 @@ function InventarioTable() {
                       {x.pendiente_compra ? '⏳' : '—'}
                     </td>
                     <td className="px-3 py-2 text-center whitespace-nowrap">
-                      {!isEntregado && x.destino === 'Vendido' && ( // Solo si es una venta y no está entregado
-                        <button
-                          type="button"
-                          onClick={() => marcarEntregado(x.id)}
-                          className="text-blue-500 hover:text-blue-700 text-xs"
-                          title="Marcar como entregado"
-                        >
-                          <CheckCircle size={16} />
-                        </button>
-                      )}
-                      <a
-  href={`/dashboard/nuevo?edit=${x.id}`}
-  className="inline-block px-2 text-blue-600 font-bold"
-  title="Editar"
->
-  ✏️
-</a>
-                      <button
-                        type="button"
-                        onClick={() => eliminarProducto(x.id)}
-                        className="text-red-500 hover:text-red-700 text-xs ml-1"
-                      >
-                        🗑️
-                      </button>
-                    </td>
+  {!isEntregado && x.destino === 'Vendido' && (
+    <button
+      type="button"
+      onClick={() => marcarEntregado(x.id)}
+      className="text-blue-500 hover:text-blue-700 text-xs"
+      title="Marcar como entregado"
+    >
+      <CheckCircle size={16} />
+    </button>
+  )}
+
+  <button
+    type="button"
+    onClick={() => eliminarProducto(x.id)}
+    className="text-red-500 hover:text-red-700 text-xs ml-1"
+  >
+    🗑️
+  </button>
+</td>
                   </tr>
                 )
               })}
