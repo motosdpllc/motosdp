@@ -1313,6 +1313,13 @@ const generarPDFCliente = () => {
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-bold">
                   ⚙️ Detalles Línea #{itemActivoIndex + 1}
+                  <button
+  type="button"
+  onClick={() => guardarPesoCatalogo(items[itemActivoIndex])}
+  className="w-full bg-blue-600 text-white rounded py-2"
+>
+  💾 Guardar peso en catálogo
+</button>
                 </h2>
                 <button
                   type="button"
