@@ -214,7 +214,7 @@ export default function CotizacionesPage() {
   }
 
   const actualizarItem = (index: number, campo: keyof CotizacionItem, valor: any) => {
-  const buscarPesoPorCodigo = async (codigo: string, index: number) => {
+ const buscarPesoPorCodigo = async (codigo: string, index: number) => {
   const { data } = await supabase
     .from('catalogo_pesos')
     .select('peso')
@@ -231,6 +231,30 @@ export default function CotizacionesPage() {
       return copia
     })
   }
+}
+
+const guardarPesoCatalogo = async (item: CotizacionItem) => {
+  if (!item.codigo || !item.peso) {
+    toast.error('Código y peso son obligatorios')
+    return
+  }
+
+  const { error } = await supabase
+    .from('catalogo_pesos')
+    .upsert({
+      codigo: item.codigo,
+      descripcion: item.descripcion,
+      peso: item.peso
+    })
+
+  if (error) {
+    toast.error('Error al guardar peso')
+    console.error(error)
+    return
+  }
+
+  toast.success('Peso guardado en catálogo')
+}
 }
     const nuevoItems = [...items]
 
