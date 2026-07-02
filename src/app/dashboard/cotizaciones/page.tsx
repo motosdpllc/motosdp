@@ -215,60 +215,62 @@ export default function CotizacionesPage() {
 
   const actualizarItem = (index: number, campo: keyof CotizacionItem, valor: any) => {
  const buscarPesoPorCodigo = async (codigo: string, index: number) => {
-  const { data } = await supabase
-    .from('catalogo_pesos')
-    .select('peso')
-    .eq('codigo', codigo)
-    .maybeSingle()
+    const { data } = await supabase
+      .from('catalogo_pesos')
+      .select('peso')
+      .eq('codigo', codigo)
+      .maybeSingle()
 
-  if (data?.peso) {
-    setItems(prev => {
-      const copia = [...prev]
-      copia[index] = {
-        ...copia[index],
-        peso: Number(data.peso)
-      }
-      return copia
-    })
-  }
-}
-
-const guardarPesoCatalogo = async (item: CotizacionItem) => {
-  if (!item.codigo || !item.peso) {
-    toast.error('Código y peso son obligatorios')
-    return
+    if (data?.peso) {
+      setItems(prev => {
+        const copia = [...prev]
+        copia[index] = {
+          ...copia[index],
+          peso: Number(data.peso)
+        }
+        return copia
+      })
+    }
   }
 
-  const { error } = await supabase
-    .from('catalogo_pesos')
-    .upsert({
-      codigo: item.codigo,
-      descripcion: item.descripcion,
-      peso: item.peso
-    })
+  const guardarPesoCatalogo = async (item: CotizacionItem) => {
+    if (!item.codigo || !item.peso) {
+      toast.error('Código y peso son obligatorios')
+      return
+    }
 
-  if (error) {
-    toast.error('Error al guardar peso')
-    console.error(error)
-    return
+    const { error } = await supabase
+      .from('catalogo_pesos')
+      .upsert({
+        codigo: item.codigo,
+        descripcion: item.descripcion,
+        peso: item.peso
+      })
+
+    if (error) {
+      toast.error('Error al guardar peso')
+      console.error(error)
+      return
+    }
+
+    toast.success('Peso guardado en catálogo')
   }
 
-  toast.success('Peso guardado en catálogo')
-}
+  const actualizarItem = (index: number, campo: keyof CotizacionItem, valor: any) => {
     const nuevoItems = [...items]
 
-  if (['peso', 'basoli', 'partzilla', 'otra', 'precio_venta', 'cantidad'].includes(campo)) {
-    nuevoItems[index] = { ...nuevoItems[index], [campo]: parseFloat(valor) || 0 }
-  } else {
-    nuevoItems[index] = { ...nuevoItems[index], [campo]: valor }
-  }
+    if (['peso', 'basoli', 'partzilla', 'otra', 'precio_venta', 'cantidad'].includes(campo)) {
+      nuevoItems[index] = { ...nuevoItems[index], [campo]: parseFloat(valor) || 0 }
+    } else {
+      nuevoItems[index] = { ...nuevoItems[index], [campo]: valor }
+    }
 
-  if (campo === 'codigo' && valor.trim()) {
-    buscarPesoPorCodigo(valor.trim(), index)
-  }
+    if (campo === 'codigo' && valor.trim()) {
+      buscarPesoPorCodigo(valor.trim(), index)
+    }
 
-  setItems(nuevoItems)
-}
+    setItems(nuevoItems)
+  }
 
   const calcularCostoConRecargo = (item: CotizacionItem): number => {
     let costo = 0
@@ -1331,18 +1333,9 @@ const generarPDFCliente = () => {
         )}
 
         {itemActivoIndex !== null && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end z-50">
-            <div className="bg-white w-full md:w-96 h-screen md:h-auto md:rounded-lg p-6 overflow-y-auto">
-              <div className="flex justify-between items-center mb-4">
+<div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-bold">
                   ⚙️ Detalles Línea #{itemActivoIndex + 1}
-                  <button
-  type="button"
-  onClick={() => guardarPesoCatalogo(items[itemActivoIndex])}
-  className="w-full bg-blue-600 text-white rounded py-2"
->
-  💾 Guardar peso en catálogo
-</button>
                 </h2>
                 <button
                   type="button"
@@ -1350,6 +1343,15 @@ const generarPDFCliente = () => {
                   className="text-gray-500 hover:text-gray-700 font-bold text-xl"
                 >
                   ✕
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => guardarPesoCatalogo(items[itemActivoIndex])}
+                className="w-full bg-blue-600 text-white rounded py-2 mb-4"
+              >
+                💾 Guardar peso en catálogo
                 </button>
               </div>
 
